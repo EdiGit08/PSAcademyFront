@@ -12,6 +12,17 @@ dist
 dist-ssr
 *.local
 
+# Variables de entorno. VITE_* se incrusta en el bundle durante "npm run build",
+# así que cualquier valor versionado aquí acaba público en el navegador para
+# siempre. Solo se versiona el ejemplo, que no contiene secretos.
+.env
+.env.*
+!.env.example
+
+# Salidas de herramientas de análisis
+.vercel
+*.tsbuildinfo
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
