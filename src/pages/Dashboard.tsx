@@ -1,0 +1,401 @@
+import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  ArrowLeft,
+  BookOpen,
+  ChevronRight,
+  CircleCheckBig,
+  CircleDashed,
+  Layers,
+  ListChecks,
+  LoaderCircle,
+  LogOut,
+  Settings,
+  Sparkles,
+  TriangleAlert,
+} from 'lucide-react'
+import ThemeToggle from '../components/ThemeToggle'
+import type { Category, Difficulty, Exercise, ProgressStatus } from '../types'
+import {
+  clearToken,
+  extractErrorMessage,
+  getCategories,
+  getExercisesByCategory,
+  isAdmin,
+} from '../services/api'
+
+const DIFFICULTY_STYLES: Record<Difficulty, { label: string; badge: string }> = {
+  Easy: { label: 'Fácil', badge: 'bg-success-soft text-success ring-success-line' },
+  Medium: { label: 'Medio', badge: 'bg-warning-soft text-warning ring-warning-line' },
+  Hard: { label: 'Difícil', badge: 'bg-danger-soft text-danger ring-danger-line' },
+}
+
+const DIFFICULTY_DOT: Record<Difficulty, string> = {
+  Easy: 'bg-green-500',
+  Medium: 'bg-yellow-500',
+  Hard: 'bg-danger-solid',
+}
+
+const STATUS_STYLES: Record<ProgressStatus, { label: string; badge: string }> = {
+  attempted: {
+    label: 'En progreso',
+    badge: 'bg-info-soft text-info ring-info-line',
+  },
+  completed: {
+    label: 'Completado',
+    badge: 'bg-success-soft text-success ring-success-line',
+  },
+}
+
+const LANGUAGE_LABELS: Record<string, string> = {
+  pseint: 'Pseudocódigo',
+  python: 'Python',
+  java: 'Java',
+}
+
+function completedLanguageLabel(slug: string | null | undefined): string | null {
+  if (!slug) return null
+  return LANGUAGE_LABELS[slug] ?? slug
+}
+
+function toCategoriesError(caught: unknown): string {
+  return extractErrorMessage(caught, 'No se pudieron cargar las categorías.')
+}
+
+function toExercisesError(caught: unknown): string {
+  return extractErrorMessage(caught, 'No se pudieron cargar los ejercicios.')
+}
+
+export default function Dashboard() {
+  const navigate = useNavigate()
+
+  const [categories, setCategories] = useState<Category[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
+  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [loadedCategoryId, setLoadedCategoryId] = useState<number | null>(null)
+
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const isLoadingExercises =
+    selectedCategory !== null && loadedCategoryId !== selectedCategory.id
+
+  const fetchCategories = useCallback(async (): Promise<Category[]> => {
+    const data = await getCategories()
+    return [...data].sort((a, b) => a.orderIndex - b.orderIndex)
+  }, [])
+
+  const applyCategories = useCallback((ordered: Category[]): void => {
+    setCategories(ordered)
+    setSelectedCategory((previous) => previous ?? ordered[0] ?? null)
+  }, [])
+
+  useEffect(() => {
+    let isActive = true
+
+    fetchCategories()
+      .then((ordered) => {
+        if (!isActive) return
+        applyCategories(ordered)
+      })
+      .catch((caught: unknown) => {
+        if (isActive) setError(toCategoriesError(caught))
+      })
+      .finally(() => {
+        if (isActive) setIsLoadingCategories(false)
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [applyCategories, fetchCategories])
+
+  useEffect(() => {
+    if (!selectedCategory) return
+
+    const categoryId = selectedCategory.id
+    let isActive = true
+
+    getExercisesByCategory(categoryId)
+      .then((data) => {
+        if (!isActive) return
+        setExercises(data)
+        setLoadedCategoryId(categoryId)
+      })
+      .catch((caught: unknown) => {
+        if (!isActive) return
+        setExercises([])
+        setLoadedCategoryId(categoryId)
+        setError(toExercisesError(caught))
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [selectedCategory])
+
+  function handleRetryCategories() {
+    setIsLoadingCategories(true)
+    setError(null)
+
+    fetchCategories()
+      .then(applyCategories)
+      .catch((caught: unknown) => setError(toCategoriesError(caught)))
+      .finally(() => setIsLoadingCategories(false))
+  }
+
+  function handleLogout() {
+    clearToken()
+    navigate('/login', { replace: true })
+  }
+
+  return (
+    <div className="min-h-screen bg-canvas">
+      <header className="sticky top-0 z-10 border-b border-line bg-surface/85 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-accent-deep text-white shadow-md shadow-accent/20">
+              <Sparkles className="h-5 w-5" strokeWidth={2.2} />
+            </div>
+            <div>
+              <h1 className="text-base font-semibold tracking-tight text-ink">PS Academy</h1>
+              <p className="text-xs text-muted">Panel de ejercicios</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isAdmin() ? (
+              <button
+                type="button"
+                onClick={() => navigate('/admin')}
+                className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
+              >
+                <Settings className="h-4 w-4" />
+                <span className="hidden sm:inline">Administrar ejercicios</span>
+              </button>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-body transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Cerrar sesión</span>
+            </button>
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold tracking-tight text-ink">Categorías</h2>
+          <p className="mt-1 text-sm text-muted">
+            Selecciona una categoría para ver sus ejercicios disponibles.
+          </p>
+        </div>
+
+        {error ? (
+          <div
+            role="alert"
+            className="mb-6 flex items-start gap-2.5 rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger"
+          >
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="flex-1">
+              <p>{error}</p>
+              <button
+                type="button"
+                onClick={handleRetryCategories}
+                className="mt-1 font-semibold text-danger underline underline-offset-2 hover:text-danger"
+              >
+                Reintentar
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start">
+          {/* Categorías */}
+          <section aria-label="Categorías">
+            {isLoadingCategories ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="h-24 animate-pulse rounded-xl border border-line bg-surface"
+                  />
+                ))}
+              </div>
+            ) : categories.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-line-strong bg-surface p-8 text-center">
+                <BookOpen className="mx-auto h-8 w-8 text-faint" />
+                <p className="mt-3 text-sm text-muted">Todavía no hay categorías disponibles.</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                {categories.map((category) => {
+                  const isSelected = selectedCategory?.id === category.id
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(category)}
+                      aria-pressed={isSelected}
+                      className={`group rounded-xl border bg-surface p-4 text-left transition focus:outline-none focus:ring-4 ${
+                        isSelected
+                          ? 'border-accent ring-4 ring-accent/10'
+                          : 'border-line hover:border-accent-line hover:shadow-md hover:shadow-line/60 focus:ring-line'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                              isSelected
+                                ? 'bg-accent text-white'
+                                : 'bg-inset text-muted group-hover:bg-accent-soft group-hover:text-accent-ink'
+                            }`}
+                          >
+                            <Layers className="h-4 w-4" />
+                          </span>
+                          <span className="font-medium text-ink">{category.name}</span>
+                        </div>
+                        <ChevronRight
+                          className={`mt-1 h-4 w-4 shrink-0 transition ${
+                            isSelected ? 'text-accent-ink' : 'text-faint group-hover:text-accent-ink'
+                          }`}
+                        />
+                      </div>
+
+                      {category.description ? (
+                        <p className="mt-2 line-clamp-2 text-sm text-muted">
+                          {category.description}
+                        </p>
+                      ) : null}
+
+                      {typeof category.exerciseCount === 'number' ? (
+                        <p className="mt-3 text-xs font-medium text-faint">
+                          {category.exerciseCount}{' '}
+                          {category.exerciseCount === 1 ? 'ejercicio' : 'ejercicios'}
+                        </p>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Ejercicios */}
+          <section aria-label="Ejercicios">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-ink">
+                {selectedCategory ? (
+                  <>
+                    <ListChecks className="h-5 w-5 text-accent-ink" />
+                    {selectedCategory.name}
+                  </>
+                ) : (
+                  'Ejercicios'
+                )}
+              </h3>
+
+              {selectedCategory ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory(null)}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-muted transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Ver todas
+                </button>
+              ) : null}
+            </div>
+
+            {!selectedCategory && !isLoadingExercises ? (
+              <div className="rounded-xl border border-dashed border-line-strong bg-surface p-10 text-center">
+                <BookOpen className="mx-auto h-9 w-9 text-faint" />
+                <p className="mt-3 text-sm font-medium text-body">Ningún filtro aplicado</p>
+                <p className="mt-1 text-sm text-muted">
+                  Selecciona una categoría para listar sus ejercicios.
+                </p>
+              </div>
+            ) : isLoadingExercises ? (
+              <div className="flex items-center gap-3 rounded-xl border border-line bg-surface p-10 justify-center text-sm text-muted">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Cargando ejercicios...
+              </div>
+            ) : exercises.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-line-strong bg-surface p-10 text-center">
+                <p className="text-sm text-muted">
+                  Esta categoría todavía no tiene ejercicios publicados.
+                </p>
+              </div>
+            ) : (
+              <ul className="grid gap-3">
+                {exercises.map((exercise) => {
+                  const difficulty = DIFFICULTY_STYLES[exercise.difficulty] ?? DIFFICULTY_STYLES.Easy
+                  const completedLanguage = completedLanguageLabel(exercise.completedInLanguageSlug)
+                  return (
+                    <li key={exercise.id}>
+                      <article className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-4 transition hover:border-accent-line hover:shadow-md hover:shadow-line/60 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-medium text-ink">{exercise.title}</h4>
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${difficulty.badge}`}
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${DIFFICULTY_DOT[exercise.difficulty]}`} />
+                              {difficulty.label}
+                            </span>
+                            {exercise.userStatus ? (
+                              <span
+                                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${STATUS_STYLES[exercise.userStatus].badge}`}
+                              >
+                                {exercise.userStatus === 'completed' ? (
+                                  <CircleCheckBig className="h-3.5 w-3.5" />
+                                ) : (
+                                  <CircleDashed className="h-3.5 w-3.5" />
+                                )}
+                                {STATUS_STYLES[exercise.userStatus].label}
+                                {exercise.userStatus === 'completed' &&
+                                completedLanguage ? (
+                                  <>
+                                    <span aria-hidden="true" className="opacity-60">
+                                      ·
+                                    </span>
+                                    <span className="font-medium">{completedLanguage}</span>
+                                  </>
+                                ) : null}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          {exercise.description ? (
+                            <p className="mt-1.5 line-clamp-2 text-sm text-muted">
+                              {exercise.description}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/workspace/${exercise.id}`)}
+                          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
+                        >
+                          Resolver
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </article>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+        </div>
+      </main>
+    </div>
+  )
+}

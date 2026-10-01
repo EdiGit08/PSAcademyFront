@@ -1,10 +1,29 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>psacademyfront</title>
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8fafc" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0a14" />
+    <title>PS Academy</title>
+    <script>
+      // Se ejecuta antes del primer paint: evita el parpadeo blanco cuando el
+      // usuario tiene el tema oscuro guardado o lo tiene por defecto en el SO.
+      (function () {
+        try {
+          var stored = localStorage.getItem('psacademy.theme')
+          var dark =
+            stored === 'dark' ||
+            (stored !== 'light' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.classList.toggle('dark', dark)
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+        } catch (error) {
+          // localStorage bloqueado: nos quedamos con el tema claro por defecto.
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

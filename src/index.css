@@ -1,1 +1,130 @@
 @import "tailwindcss";
+
+/* Modo oscuro por clase en <html>, no por preferencia del sistema, para que el
+   toggle del usuario tenga prioridad. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Tokens semánticos
+   Los componentes usan nombres (bg-surface, text-muted) en lugar de la escala
+   slate/indigo, así el tema se cambia aquí y no en 2.500 líneas de JSX.
+   --------------------------------------------------------------------------- */
+@theme {
+  /* Superficies */
+  --color-canvas: #f8fafc;
+  --color-surface: #ffffff;
+  --color-inset: #f1f5f9;
+  --color-recess: #e2e8f0;
+  --color-line: #e2e8f0;
+  --color-line-strong: #cbd5e1;
+
+  /* Texto */
+  --color-ink: #0f172a;
+  --color-body: #334155;
+  --color-muted: #64748b;
+  --color-faint: #94a3b8;
+
+  /* Acento morado */
+  --color-accent: #6d28d9;
+  --color-accent-hover: #5b21b6;
+  --color-accent-ink: #5b21b6;
+  --color-accent-soft: #f5f3ff;
+  --color-accent-line: #c4b5fd;
+  --color-accent-deep: #4c1d95;
+
+  /* Estados: versión suave, sobre superficies normales */
+  --color-danger: #b91c1c;
+  --color-danger-soft: #fef2f2;
+  --color-danger-line: #fecaca;
+  --color-success: #047857;
+  --color-success-soft: #ecfdf5;
+  --color-success-line: #a7f3d0;
+  --color-warning: #b45309;
+  --color-warning-soft: #fffbeb;
+  --color-warning-line: #fde68a;
+  --color-info: #0369a1;
+  --color-info-soft: #f0f9ff;
+  --color-info-line: #bae6fd;
+
+  /* Estados: versión sólida, idéntica en ambos temas.
+     #047857 da 5.5:1 con texto blanco; #059669 se queda en 3.8:1 y solo se
+     usa en el estado hover del botón Ejecutar. */
+  --color-danger-solid: #dc2626;
+  --color-danger-solid-hover: #ef4444;
+  --color-success-solid: #047857;
+  --color-success-solid-hover: #059669;
+
+  /* Superficies siempre oscuras (consola y editor) */
+  --color-backdrop: rgb(2 6 23 / 0.55);
+  --color-code: #181818;
+  --color-code-chrome: #252526;
+  --color-code-input: #3c3c3c;
+  --color-code-input-hover: #454545;
+  --color-editor: #1e1e1e;
+  --color-code-ink: #e5e5e7;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --color-canvas: #0b0a14;
+  --color-surface: #151327;
+  --color-inset: #1e1b33;
+  --color-recess: #0a0912;
+  --color-line: #2a2545;
+  --color-line-strong: #3b3460;
+
+  --color-ink: #f5f3ff;
+  --color-body: #dcd7ee;
+  --color-muted: #a09abb;
+  --color-faint: #8f86ad;
+
+  /* #7c3aed mantiene el texto blanco del botón por encima de 4.5:1; el hover
+     sube a #8b5cf6 (4.2:1), aceptable porque es un estado transitorio. */
+  --color-accent: #7c3aed;
+  --color-accent-hover: #8b5cf6;
+  --color-accent-ink: #c4b5fd;
+  --color-accent-soft: #2e2350;
+  --color-accent-line: #6d28d9;
+  --color-accent-deep: #5b21b6;
+
+  --color-danger: #fca5a5;
+  --color-danger-soft: rgb(239 68 68 / 0.12);
+  --color-danger-line: rgb(239 68 68 / 0.32);
+  --color-success: #6ee7b7;
+  --color-success-soft: rgb(16 185 129 / 0.12);
+  --color-success-line: rgb(16 185 129 / 0.32);
+  --color-warning: #fcd34d;
+  --color-warning-soft: rgb(245 158 11 / 0.12);
+  --color-warning-line: rgb(245 158 11 / 0.32);
+  --color-info: #7dd3fc;
+  --color-info-soft: rgb(14 165 233 / 0.12);
+  --color-info-line: rgb(14 165 233 / 0.32);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-body);
+  }
+
+  /* Evita el destello blanco al conmutar y respeta prefers-reduced-motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    html.theme-ready body,
+    html.theme-ready body * {
+      transition-property: background-color, border-color, color, box-shadow, fill, stroke;
+      transition-duration: 150ms;
+      transition-timing-function: ease-out;
+    }
+  }
+
+  /* Los scrollbars acompañan el tema. `scrollbar-color` se hereda, así que
+     basta declararlo una vez en el html en lugar de usar `.dark *`. */
+  .dark {
+    scrollbar-color: var(--color-line-strong) var(--color-canvas);
+  }
+}
