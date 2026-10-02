@@ -6,9 +6,11 @@ import {
   ChevronRight,
   CircleCheckBig,
   CircleDashed,
+  GraduationCap,
   Layers,
   ListChecks,
   LoaderCircle,
+  Lock,
   LogOut,
   Settings,
   Sparkles,
@@ -21,8 +23,19 @@ import {
   extractErrorMessage,
   getCategories,
   getExercisesByCategory,
+  getTutorialProgress,
   isAdmin,
 } from '../services/api'
+import type { TutorialProgress } from '../services/api'
+
+/** Categoría que se abre al terminar el tutorial. */
+const SEQUENTIAL_CATEGORY_NAME = 'Fundamentos'
+
+const EMPTY_TUTORIAL_PROGRESS: TutorialProgress = {
+  totalLessons: 0,
+  completedLessons: 0,
+  isComplete: false,
+}
 
 const DIFFICULTY_STYLES: Record<Difficulty, { label: string; badge: string }> = {
   Easy: { label: 'Fácil', badge: 'bg-success-soft text-success ring-success-line' },
@@ -76,9 +89,16 @@ export default function Dashboard() {
 
   const [isLoadingCategories, setIsLoadingCategories] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [tutorial, setTutorial] = useState<TutorialProgress>(EMPTY_TUTORIAL_PROGRESS)
 
   const isLoadingExercises =
     selectedCategory !== null && loadedCategoryId !== selectedCategory.id
+
+  /** Secuenciales espera a que el alumno termine las cinco lecciones del tutorial. */
+  const isSequentialLocked =
+    selectedCategory !== null &&
+    selectedCategory.name.trim().toLowerCase() === SEQUENTIAL_CATEGORY_NAME.toLowerCase() &&
+    !tutorial.isComplete
 
   const fetchCategories = useCallback(async (): Promise<Category[]> => {
     const data = await getCategories()
@@ -111,7 +131,27 @@ export default function Dashboard() {
   }, [applyCategories, fetchCategories])
 
   useEffect(() => {
+    // El tutorial es informativo: si falla, el panel sigue siendo utilizable.
+    let isActive = true
+
+    getTutorialProgress()
+      .then((progress) => {
+        if (isActive) setTutorial(progress)
+      })
+      .catch(() => {
+        if (isActive) setTutorial(EMPTY_TUTORIAL_PROGRESS)
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  useEffect(() => {
     if (!selectedCategory) return
+    // Con Secuenciales bloqueado no hay nada que pedir: la vista muestra el
+    // aviso del tutorial en lugar del listado.
+    if (isSequentialLocked) return
 
     const categoryId = selectedCategory.id
     let isActive = true
@@ -132,7 +172,7 @@ export default function Dashboard() {
     return () => {
       isActive = false
     }
-  }, [selectedCategory])
+  }, [isSequentialLocked, selectedCategory])
 
   function handleRetryCategories() {
     setIsLoadingCategories(true)
@@ -189,6 +229,44 @@ export default function Dashboard() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        {/* Tutorial: es la puerta de entrada, por eso va antes que las categorías. */}
+        {tutorial.totalLessons > 0 ? (
+          <section className="mb-8 overflow-hidden rounded-2xl border border-accent-line bg-gradient-to-br from-accent-soft via-surface to-surface p-5 sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-4">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-accent-deep text-white shadow-md shadow-accent/25">
+                  <GraduationCap className="h-6 w-6" />
+                </span>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-ink">
+                    {tutorial.isComplete ? 'Tutorial completado' : 'Empieza por aquí'}
+                  </p>
+                  <h2 className="mt-0.5 text-xl font-semibold tracking-tight text-ink">
+                    Tutorial guiado: de cero a tu primer programa
+                  </h2>
+                  <p className="mt-1 max-w-2xl text-sm text-body">
+                    {tutorial.isComplete
+                      ? 'Ya superaste las cinco lecciones. Ahora puedes practicar con los ejercicios de cada categoría.'
+                      : 'Cinco lecciones cortas que te enseñan a escribir un programa, pedir datos y mostrar resultados. Al terminar se desbloquean los ejercicios de Secuenciales.'}
+                  </p>
+                  <p className="mt-2 text-xs font-medium text-muted">
+                    {tutorial.completedLessons} de {tutorial.totalLessons} lecciones superadas
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => navigate('/tutorial')}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-accent/25 transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
+              >
+                {tutorial.isComplete ? 'Repasar el tutorial' : 'Comenzar el tutorial'}
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         <div className="mb-6">
           <h2 className="text-2xl font-semibold tracking-tight text-ink">Categorías</h2>
           <p className="mt-1 text-sm text-muted">
@@ -240,7 +318,14 @@ export default function Dashboard() {
                     <button
                       key={category.id}
                       type="button"
-                      onClick={() => setSelectedCategory(category)}
+                      onClick={() => {
+                        // El tutorial tiene su propia página guiada: no es un listado.
+                        if (category.name.trim().toLowerCase() === 'tutorial') {
+                          navigate('/tutorial')
+                          return
+                        }
+                        setSelectedCategory(category)
+                      }}
                       aria-pressed={isSelected}
                       className={`group rounded-xl border bg-surface p-4 text-left transition focus:outline-none focus:ring-4 ${
                         isSelected
@@ -320,6 +405,28 @@ export default function Dashboard() {
                 <p className="mt-1 text-sm text-muted">
                   Selecciona una categoría para listar sus ejercicios.
                 </p>
+              </div>
+            ) : isSequentialLocked ? (
+              <div className="rounded-xl border border-dashed border-accent-line bg-accent-soft p-10 text-center">
+                <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-white shadow-sm">
+                  <Lock className="h-5 w-5" />
+                </span>
+                <p className="mt-4 text-sm font-semibold text-ink">
+                  Completa el tutorial para empezar
+                </p>
+                <p className="mx-auto mt-1 max-w-md text-sm text-body">
+                  Los ejercicios de {SEQUENTIAL_CATEGORY_NAME} se abren al terminar las cinco
+                  lecciones del tutorial. Te lleva unos 20 minutos y te explica todo lo que
+                  necesitas saber.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/tutorial')}
+                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-accent/25 transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
+                >
+                  Ir al tutorial
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
             ) : isLoadingExercises ? (
               <div className="flex items-center gap-3 rounded-xl border border-line bg-surface p-10 justify-center text-sm text-muted">

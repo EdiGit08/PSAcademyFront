@@ -49,6 +49,30 @@ export interface ExerciseDraft {
   updatedAt: string
 }
 
+/**
+ * Un paso guiado de un ejercicio del tutorial.
+ *
+ * El snippet es código PSeint completo y su salida esperada se valida en
+ * `/execute`; el último paso del ejercicio repite la salida del reto final.
+ */
+export interface TutorialStep {
+  id: number
+  exerciseId: number
+  orderIndex: number
+  title: string
+  body: string
+  /** Qué debe hacer el alumno en este paso; es la guía corta de la cabecera. */
+  task: string | null
+  codeSnippet: string
+  expectedOutput: string
+  tip: string | null
+}
+
+/** Un ejercicio del tutorial viene con sus pasos ya ordenados. */
+export interface TutorialExercise extends Exercise {
+  tutorialSteps: TutorialStep[]
+}
+
 export interface Exercise {
   id: number
   categoryId: number
@@ -70,6 +94,12 @@ export interface Exercise {
 export interface ExecuteRequest {
   languageSlug: string
   code: string
+  /**
+   * Paso del tutorial que se está validando. El backend lo usa para comprobar
+   * la salida contra la de ese paso en lugar de contra la del ejercicio, y para
+   * no marcar el reto como superado hasta el último paso.
+   */
+  tutorialStepId?: number
 }
 
 export interface ExecuteResponse {
@@ -124,6 +154,7 @@ export interface AdminExercise {
   createdAt: string
   templates: AdminTemplate[]
   inputs: ExerciseInput[]
+  tutorialSteps: TutorialStep[]
 }
 
 export interface UpsertTemplate {
@@ -137,6 +168,16 @@ export interface UpsertInput {
   valueType: InputValueType
 }
 
+/** Paso del tutorial tal como lo envía el admin (el orden es `orderIndex`). */
+export interface UpsertTutorialStep {
+  title: string
+  body: string
+  task: string | null
+  codeSnippet: string
+  expectedOutput: string
+  tip: string | null
+}
+
 export interface UpsertExerciseRequest {
   categoryId: number
   title: string
@@ -147,6 +188,8 @@ export interface UpsertExerciseRequest {
   templates: UpsertTemplate[]
   /** Reemplaza la colección completa: el orden del arreglo es el de lectura. */
   inputs: UpsertInput[]
+  /** Reemplaza la colección completa: el orden del arreglo es el de los pasos. */
+  tutorialSteps: UpsertTutorialStep[]
 }
 
 /** Cuerpo de `PUT /api/exercises/{id}/draft`. */

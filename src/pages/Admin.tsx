@@ -437,6 +437,16 @@ export default function Admin() {
         value: input.value.trim(),
         valueType: input.valueType,
       })),
+      // Los pasos del tutorial se reenvían tal cual llegaron: este formulario no los
+      // edita, pero el PUT reemplaza la colección completa y no debe borrarlos.
+      tutorialSteps: (editing?.tutorialSteps ?? []).map((step) => ({
+        title: step.title,
+        body: step.body,
+        task: step.task,
+        codeSnippet: step.codeSnippet,
+        expectedOutput: step.expectedOutput,
+        tip: step.tip,
+      })),
     }
 
     setIsSaving(true)

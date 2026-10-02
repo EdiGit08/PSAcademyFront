@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
+import Tutorial from './pages/Tutorial'
 import Workspace from './pages/Workspace'
 import Admin from './pages/Admin'
 import { isAdmin, isAuthenticated } from './services/api'
@@ -43,6 +44,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tutorial"
+          element={
+            <ProtectedRoute>
+              <Tutorial />
             </ProtectedRoute>
           }
         />

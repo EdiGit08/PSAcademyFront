@@ -18,6 +18,8 @@ import type {
   RegisterRequest,
   RegisterResponse,
   SaveDraftRequest,
+  TutorialExercise,
+  TutorialStep,
   UpsertCategoryRequest,
   UpsertExerciseRequest,
   User,
@@ -203,6 +205,19 @@ interface RawExerciseDraft {
   updatedAt: string
 }
 
+/** `TutorialStepResponse` del backend, en camelCase. */
+interface RawTutorialStep {
+  id: number
+  exerciseId: number
+  orderIndex: number
+  title: string
+  body: string
+  task?: string | null
+  codeSnippet: string
+  expectedOutput: string
+  tip?: string | null
+}
+
 interface RawExercise {
   id: number
   categoryId: number
@@ -217,6 +232,28 @@ interface RawExercise {
   templates?: RawExerciseTemplate[] | null
   inputs?: RawExerciseInput[] | null
   drafts?: RawExerciseDraft[] | null
+  tutorialSteps?: RawTutorialStep[] | null
+}
+
+function toTutorialStep(raw: RawTutorialStep): TutorialStep {
+  return {
+    id: raw.id,
+    exerciseId: raw.exerciseId,
+    orderIndex: raw.orderIndex,
+    title: raw.title,
+    body: raw.body,
+    task: raw.task ?? null,
+    codeSnippet: raw.codeSnippet,
+    expectedOutput: raw.expectedOutput,
+    tip: raw.tip ?? null,
+  }
+}
+
+/** Los pasos llegan en cualquier orden; el alumno siempre los recorre en ascending. */
+function toTutorialSteps(raw: RawExercise): TutorialStep[] {
+  return [...(raw.tutorialSteps ?? [])]
+    .sort((a, b) => a.orderIndex - b.orderIndex)
+    .map(toTutorialStep)
 }
 
 function toTemplate(raw: RawExerciseTemplate): ExerciseTemplate {
@@ -234,7 +271,7 @@ function toTemplate(raw: RawExerciseTemplate): ExerciseTemplate {
   }
 }
 
-function toExerciseDetail(raw: RawExercise): Exercise {
+function toExerciseDetail(raw: RawExercise): TutorialExercise {
   const inputs: ExerciseInput[] = [...(raw.inputs ?? [])]
     .sort((a, b) => a.orderIndex - b.orderIndex)
     .map((input) => ({
@@ -262,6 +299,7 @@ function toExerciseDetail(raw: RawExercise): Exercise {
     inputs,
     userStatus: raw.userStatus ?? null,
     drafts,
+    tutorialSteps: toTutorialSteps(raw),
   }
 }
 
@@ -309,9 +347,74 @@ export async function getExercisesByCategory(categoryId: number): Promise<Exerci
   return data.map(toExerciseSummary)
 }
 
-export async function getExerciseById(exerciseId: number): Promise<Exercise> {
+export async function getExerciseById(exerciseId: number): Promise<TutorialExercise> {
   const { data } = await api.get<RawExercise>(`/exercises/${exerciseId}`)
   return toExerciseDetail(data)
+}
+
+/** Nombre exacto de la categoría de bienvenida; el backend la siembra sola. */
+const TUTORIAL_CATEGORY_NAME = 'Tutorial'
+
+/**
+ * Lecciones del tutorial con sus pasos ya cargados.
+ *
+ * El listado por categoría devuelve resúmenes sin plantillas ni pasos, así que
+ * primero se localiza la categoría "Tutorial" y después se pide el detalle de
+ * cada lección. Son pocas peticiones y salen en paralelo; el orden es el mismo
+ * que devuelve el backend (`orderIndex`, luego título).
+ */
+export async function getTutorialExercises(): Promise<TutorialExercise[]> {
+  const categories = await getCategories()
+  const tutorial = categories.find(
+    (category) => category.name.trim().toLowerCase() === TUTORIAL_CATEGORY_NAME.toLowerCase(),
+  )
+
+  if (!tutorial) return []
+
+  const summaries = await getExercisesByCategory(tutorial.id)
+  return Promise.all(summaries.map((summary) => getExerciseById(summary.id)))
+}
+
+/**
+ * Primer ejercicio de una categoría, usado por el tutorial para abrir el
+ * primer reto de Secuenciales cuando el alumno termina las cinco lecciones.
+ */
+export async function getFirstExerciseOfCategory(categoryName: string): Promise<Exercise | null> {
+  const categories = await getCategories()
+  const category = categories.find(
+    (item) => item.name.trim().toLowerCase() === categoryName.trim().toLowerCase(),
+  )
+
+  if (!category) return null
+
+  const exercises = await getExercisesByCategory(category.id)
+  return exercises[0] ?? null
+}
+
+/** Avance del tutorial, para mostrarlo en el panel y saber si ya se puede seguir. */
+export interface TutorialProgress {
+  totalLessons: number
+  completedLessons: number
+  /** `false` mientras quede alguna lección sin superar (o si no hay lecciones). */
+  isComplete: boolean
+}
+
+export async function getTutorialProgress(): Promise<TutorialProgress> {
+  const categories = await getCategories()
+  const tutorial = categories.find(
+    (category) => category.name.trim().toLowerCase() === TUTORIAL_CATEGORY_NAME.toLowerCase(),
+  )
+
+  if (!tutorial) return { totalLessons: 0, completedLessons: 0, isComplete: false }
+
+  const lessons = await getExercisesByCategory(tutorial.id)
+  const completedLessons = lessons.filter((lesson) => lesson.userStatus === 'completed').length
+
+  return {
+    totalLessons: lessons.length,
+    completedLessons,
+    isComplete: lessons.length > 0 && completedLessons >= lessons.length,
+  }
 }
 
 export async function executeCode(

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ChangeEvent, ComponentProps, PointerEvent as ReactPointerEvent } from 'react'
+import type { ChangeEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Editor from '@monaco-editor/react'
 import type { OnMount } from '@monaco-editor/react'
@@ -10,12 +10,14 @@ import {
   CircleDashed,
   CircleX,
   Code,
+  Lightbulb,
   LoaderCircle,
   Play,
   RotateCcw,
   Terminal,
   TriangleAlert,
 } from 'lucide-react'
+import ConceptCard from '../components/ConceptCard'
 import ThemeToggle from '../components/ThemeToggle'
 import type {
   Difficulty,
@@ -33,7 +35,10 @@ import {
   isAuthenticated,
   saveDraft,
 } from '../services/api'
-import { PSEINT_LANGUAGE_ID, registerPseintLanguage } from '../services/monacoLanguages'
+import { registerPseintLanguage } from '../services/monacoLanguages'
+import { detectConcepts, getSeenConceptIds, markConceptSeen } from '../services/concepts'
+import type { Concept } from '../services/concepts'
+import { EDITOR_OPTIONS, toMonacoLanguage } from '../services/editor'
 
 type DraftState = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -59,61 +64,6 @@ const DIFFICULTY_STYLES: Record<Difficulty, { label: string; badge: string }> = 
   Easy: { label: 'Fácil', badge: 'bg-success-soft text-success ring-success-line' },
   Medium: { label: 'Medio', badge: 'bg-warning-soft text-warning ring-warning-line' },
   Hard: { label: 'Difícil', badge: 'bg-danger-soft text-danger ring-danger-line' },
-}
-
-const MONACO_LANGUAGES: Record<string, string> = {
-  pseint: PSEINT_LANGUAGE_ID,
-  pseudocode: PSEINT_LANGUAGE_ID,
-  pseudo: PSEINT_LANGUAGE_ID,
-  python: 'python',
-  py: 'python',
-  java: 'java',
-  javascript: 'javascript',
-  js: 'javascript',
-  typescript: 'typescript',
-  ts: 'typescript',
-  csharp: 'csharp',
-  'c#': 'csharp',
-  cs: 'csharp',
-  c: 'c',
-  cpp: 'cpp',
-  'c++': 'cpp',
-}
-
-function toMonacoLanguage(slug: string): string {
-  return MONACO_LANGUAGES[slug.trim().toLowerCase()] ?? 'plaintext'
-}
-
-// Una sola instancia para toda la vida de la app. Si el objeto se crea en cada
-// render, Monaco recibe `updateOptions` en cada pulsación y su popup de
-// sugerencias se queda pegado al caret: el alumno ve lo que teclea dentro de un
-// widget flotante en lugar de insertarlo en el editor.
-const EDITOR_OPTIONS: NonNullable<ComponentProps<typeof Editor>['options']> = {
-  automaticLayout: true,
-  fontSize: 13,
-  fontFamily: "'Cascadia Code', Consolas, 'Courier New', monospace",
-  minimap: { enabled: false },
-  scrollBeyondLastLine: false,
-  renderLineHighlight: 'line',
-  lineNumbersMinChars: 3,
-  tabSize: 4,
-  insertSpaces: true,
-  wordWrap: 'on',
-  padding: { top: 16, bottom: 16 },
-  ariaLabel: 'Editor de código',
-  // Sin UI flotante que compita con la escritura: sugerencias, ayuda de
-  // parámetros, hover y texto fantasma se gestionan desde el traductor del
-  // backend y el botón Ejecutar, no sobre el código del alumno.
-  quickSuggestions: false,
-  suggestOnTriggerCharacters: false,
-  acceptSuggestionOnEnter: 'off',
-  acceptSuggestionOnCommitCharacter: false,
-  parameterHints: { enabled: false },
-  hover: { enabled: 'off' },
-  inlineSuggest: { enabled: false },
-  suggest: { showWords: false },
-  occurrencesHighlight: 'off',
-  codeLens: false,
 }
 
 function normalizeExercise(data: Exercise): Exercise {
@@ -395,6 +345,15 @@ export default function Workspace() {
     editor.layout()
   }, [])
 
+  // Constructor(es) nueva(s) que hay que explicar antes del primer intento.
+  const hasCheckedConcepts = useRef(false)
+  const [conceptsToShow, setConceptsToShow] = useState<Concept[]>([])
+
+  const handleAcknowledgeConcept = useCallback((conceptId: string) => {
+    markConceptSeen(conceptId)
+    setConceptsToShow((previous) => previous.filter((concept) => concept.id !== conceptId))
+  }, [])
+
   useEffect(() => {
     const editor = editorRef.current
     const container = editor?.getContainerDomNode()?.parentElement ?? null
@@ -435,6 +394,22 @@ export default function Workspace() {
 
   const handleRun = useCallback(async () => {
     if (!exercise || isRunning || !effectiveSlug) return
+
+    // Antes del primer intento se comprueba si el código usa alguna construcción
+    // que el alumno todavía no ha visto: en ese caso se explica y se espera a
+    // que pulse "Entendido" en lugar de ejecutar a ciegas.
+    if (!hasCheckedConcepts.current) {
+      const pending = detectConcepts(currentCode, effectiveSlug).filter(
+        (concept) => !getSeenConceptIds().has(concept.id),
+      )
+
+      if (pending.length > 0) {
+        setConceptsToShow(pending)
+        return
+      }
+
+      hasCheckedConcepts.current = true
+    }
 
     setIsRunning(true)
     setResult(null)
@@ -536,6 +511,25 @@ export default function Workspace() {
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+          {conceptsToShow.length > 0 ? (
+            <section className="mb-6 space-y-3">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="h-4 w-4 text-accent-ink" />
+                <h2 className="text-sm font-semibold text-ink">
+                  Antes de ejecutar: {conceptsToShow.length === 1 ? 'un concepto nuevo' : 'conceptos nuevos'}
+                </h2>
+              </div>
+
+              {conceptsToShow.map((concept) => (
+                <ConceptCard key={concept.id} concept={concept} onAcknowledge={handleAcknowledgeConcept} />
+              ))}
+
+              <p className="text-xs text-muted">
+                Cuando los hayas leído, vuelve a pulsar Ejecutar para ver la salida de tu código.
+              </p>
+            </section>
+          ) : null}
+
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl font-bold leading-tight tracking-tight text-ink">
               {exercise.title}
