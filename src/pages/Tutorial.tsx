@@ -30,7 +30,7 @@ import {
 import { EDITOR_OPTIONS, toMonacoLanguage } from '../services/editor'
 import { PSEINT_LANGUAGE_ID, registerPseintLanguage } from '../services/monacoLanguages'
 
-/** Categoría a la que se abre paso al terminar las cinco lecciones. */
+/** Categoría que se habilita al completar el 100% de las lecciones. */
 const NEXT_CATEGORY_NAME = 'Fundamentos'
 
 function toTutorialError(caught: unknown): string {
@@ -48,6 +48,13 @@ function hasExecutionError(result: ExecuteResponse | null): boolean {
  * concepto y el paso actual; a la derecha el alumno edita y ejecuta. El backend
  * valida cada paso contra su salida esperada y solo marca la lección como
  * superada en el último paso, así que avanzar exige ejecutar algo correcto.
+ *
+ * Las lecciones pueden hacerse en cualquier orden: terminar la última lección
+ * NO cierra el tutorial. El tutorial se da por terminado (felicitación y acceso
+ * a Fundamentos) únicamente cuando el progreso llega al 100%.
+ *
+ * Al entrar a /tutorial se muestra siempre la galería de lecciones; la lección
+ * activa solo se define cuando el alumno elige una (o pulsa el botón principal).
  */
 export default function Tutorial() {
   const navigate = useNavigate()
@@ -56,6 +63,7 @@ export default function Tutorial() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
+  // Empieza en null a propósito: así se ve la galería y no la lección 1.
   const [activeLessonId, setActiveLessonId] = useState<number | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   /** Código por paso: se guarda para no perder lo escrito al volver atrás. */
@@ -76,7 +84,6 @@ export default function Tutorial() {
         setCompletedLessonIds(
           data.filter((lesson) => lesson.userStatus === 'completed').map((lesson) => lesson.id),
         )
-        setActiveLessonId((previous) => previous ?? data[0]?.id ?? null)
         return data
       })
       .catch((caught: unknown) => {
@@ -102,7 +109,6 @@ export default function Tutorial() {
         setCompletedLessonIds(
           data.filter((lesson) => lesson.userStatus === 'completed').map((lesson) => lesson.id),
         )
-        setActiveLessonId((previous) => previous ?? data[0]?.id ?? null)
       })
       .catch((caught: unknown) => {
         if (!isActive) return
@@ -130,7 +136,10 @@ export default function Tutorial() {
 
   const step: TutorialStep | null = steps[stepIndex] ?? null
   const isLastStep = step !== null && stepIndex === steps.length - 1
-  const isLastLesson = activeLesson !== null && activeLesson.id === lessons[lessons.length - 1]?.id
+
+  /** El tutorial solo está terminado cuando TODAS las lecciones están completadas (100%). */
+  const allLessonsCompleted =
+    lessons.length > 0 && lessons.every((lesson) => completedLessonIds.includes(lesson.id))
 
   const code = step ? (codeByStep[step.id] ?? step.codeSnippet) : ''
   const isStepSolved = step !== null && solvedStepIds.includes(step.id)
@@ -237,15 +246,14 @@ export default function Tutorial() {
       return
     }
 
-    const currentIndex = lessons.findIndex((lesson) => lesson.id === activeLesson.id)
-    const nextLesson = lessons[currentIndex + 1]
-
-    if (nextLesson) {
-      openLesson(nextLesson, 0)
+    // Último paso de la lección: el tutorial solo termina si ya está al 100%.
+    // Si no, se vuelve a la galería para que el alumno elija otra lección.
+    if (allLessonsCompleted) {
+      setIsFinished(true)
       return
     }
 
-    setIsFinished(true)
+    backToLessons()
   }
 
   async function handleGoToNextCategory() {
@@ -321,7 +329,8 @@ export default function Tutorial() {
               <button
                 type="button"
                 onClick={handleRetryTutorial}
-                className="mt-1 inline-flex min-h-11 items-center font-semibold text-danger underline underline-offset-2 hover:text-danger sm:min-h-0"              >
+                className="mt-1 inline-flex min-h-11 items-center font-semibold text-danger underline underline-offset-2 hover:text-danger sm:min-h-0"
+              >
                 Reintentar
               </button>
             </div>
@@ -351,9 +360,28 @@ export default function Tutorial() {
   // ------------------------------------------------------------- Galería
 
   if (!activeLesson) {
-    const finishedCount = lessons.filter(
-      (lesson) => lesson.userStatus === 'completed' || completedLessonIds.includes(lesson.id),
-    ).length
+    const finishedCount = lessons.filter((lesson) => completedLessonIds.includes(lesson.id)).length
+    const allDone = allLessonsCompleted
+
+    const galleryEyebrow = allDone
+      ? 'Tutorial completado'
+      : finishedCount > 0
+        ? 'Tutorial en progreso'
+        : 'Empieza por aquí'
+
+    const galleryCta = allDone
+      ? 'Repetir el tutorial'
+      : finishedCount > 0
+        ? 'Continuar donde lo dejaste'
+        : 'Empezar la lección 1'
+
+    function handleMainAction() {
+      // Repetir: vuelve a la lección 1. Continuar/Empezar: primera lección pendiente.
+      const target = allDone
+        ? lessons[0]
+        : (lessons.find((lesson) => !completedLessonIds.includes(lesson.id)) ?? lessons[0])
+      openLesson(target, 0)
+    }
 
     return (
       <div className="min-h-screen bg-canvas">
@@ -363,7 +391,7 @@ export default function Tutorial() {
           <section className="overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-accent-soft via-surface to-surface p-5 sm:p-8">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white">
               <Sparkles className="h-3.5 w-3.5" />
-              Empieza por aquí
+              {galleryEyebrow}
             </span>
             <h2 className="mt-4 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
               Aprende a programar desde cero, paso a paso
@@ -389,27 +417,39 @@ export default function Tutorial() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const pending = lessons.find(
-                    (lesson) => !completedLessonIds.includes(lesson.id),
-                  )
-                  openLesson(pending ?? lessons[0], 0)
-                }}
-                className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-accent/25 transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
-              >
-                {finishedCount > 0 ? 'Continuar donde lo dejaste' : 'Empezar la lección 1'}
-                <ArrowRight className="h-4 w-4" />
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleMainAction}
+                  className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-accent/25 transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
+                >
+                  {galleryCta}
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+
+                {allDone ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleGoToNextCategory()}
+                    disabled={isOpeningNext}
+                    className="inline-flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 py-2.5 text-sm font-semibold text-body transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isOpeningNext ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ArrowRight className="h-4 w-4" />
+                    )}
+                    Ir a {NEXT_CATEGORY_NAME}
+                  </button>
+                ) : null}
+              </div>
             </div>
           </section>
 
           <h3 className="mt-8 text-lg font-semibold tracking-tight text-ink">Lecciones</h3>
           <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {lessons.map((lesson, index) => {
-              const isDone =
-                lesson.userStatus === 'completed' || completedLessonIds.includes(lesson.id)
+              const isDone = completedLessonIds.includes(lesson.id)
               return (
                 <li key={lesson.id}>
                   <button
@@ -438,7 +478,7 @@ export default function Tutorial() {
                     <p className="mt-1 line-clamp-2 text-sm text-muted">{lesson.description}</p>
 
                     <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-accent-ink">
-                      Abrir lección
+                      {isDone ? 'Repasar lección' : 'Abrir lección'}
                       <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                     </span>
                   </button>
@@ -464,12 +504,12 @@ export default function Tutorial() {
               <Trophy className="h-8 w-8" />
             </span>
             <h2 className="mt-5 text-2xl font-semibold tracking-tight text-ink">
-              Ya estás listo para empezar tu camino
+              ¡Felicitaciones, completaste el tutorial!
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-sm text-body">
               Ya sabes escribir un programa, pedir datos con Leer, guardar información en
-              variables y mostrar resultados. Las cinco lecciones quedan completadas: el siguiente
-              paso son los ejercicios de {NEXT_CATEGORY_NAME}.
+              variables y mostrar resultados. Las cinco lecciones quedan completadas al 100%: la
+              sección de {NEXT_CATEGORY_NAME} ya está habilitada para ti.
             </p>
 
             <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
@@ -783,7 +823,9 @@ export default function Tutorial() {
                 <p className="text-xs text-code-ink/40">
                   {canContinue
                     ? isLastStep
-                      ? 'Último paso: al continuar se completa la lección.'
+                      ? allLessonsCompleted
+                        ? 'Con esta lección completas el tutorial al 100%.'
+                        : 'Lección completada: vuelve a la galería para elegir otra.'
                       : 'Puedes continuar al siguiente paso.'
                     : 'Supera este paso para poder continuar.'}
                 </p>
@@ -795,9 +837,9 @@ export default function Tutorial() {
                   className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-accent/25 transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/30 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-code-ink/30 disabled:shadow-none"
                 >
                   {isLastStep
-                    ? isLastLesson
+                    ? allLessonsCompleted
                       ? 'Terminar el tutorial'
-                      : 'Siguiente lección'
+                      : 'Volver a las lecciones'
                     : 'Siguiente paso'}
                   <ArrowRight className="h-4 w-4" />
                 </button>
