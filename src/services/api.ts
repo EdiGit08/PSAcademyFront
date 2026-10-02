@@ -3,6 +3,7 @@ import type { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import type {
   AdminCategory,
   AdminExercise,
+  AdminUser,
   Category,
   ExecuteRequest,
   ExecuteResponse,
@@ -22,6 +23,7 @@ import type {
   TutorialStep,
   UpsertCategoryRequest,
   UpsertExerciseRequest,
+  UpsertUserRequest,
   User,
 } from '../types'
 
@@ -230,6 +232,7 @@ interface RawTutorialStep {
   task?: string | null
   codeSnippet: string
   expectedOutput: string
+  stdin?: string | null
   tip?: string | null
 }
 
@@ -260,6 +263,7 @@ function toTutorialStep(raw: RawTutorialStep): TutorialStep {
     task: raw.task ?? null,
     codeSnippet: raw.codeSnippet,
     expectedOutput: raw.expectedOutput,
+    stdin: raw.stdin ?? null,
     tip: raw.tip ?? null,
   }
 }
@@ -523,4 +527,29 @@ export async function updateCategory(
  */
 export async function deleteCategory(categoryId: number): Promise<void> {
   await api.delete(`${ADMIN_PATH}/categories/${categoryId}`)
+}
+
+// ------------------------------------------------------------ Admin: usuarios
+
+export async function getAdminUsers(): Promise<AdminUser[]> {
+  const { data } = await api.get<AdminUser[]>(`${ADMIN_PATH}/users`)
+  return data
+}
+
+/**
+ * Guarda correo, rol y, si viene informed, una contraseña nueva. El backend rechaza
+ * (403) editar la propia cuenta y (409) degradar o borrar al último administrador,
+ * así que ambos casos se tratan como error visible en la UI y no se silencian.
+ */
+export async function updateUser(userId: number, payload: UpsertUserRequest): Promise<AdminUser> {
+  const { data } = await api.put<AdminUser>(`${ADMIN_PATH}/users/${userId}`, payload)
+  return data
+}
+
+/**
+ * Borrado físico en cascada: se van el progreso y los borradores del usuario. Sin
+ * papelera, por eso la UI pide confirmación escribiendo el correo antes de llamar.
+ */
+export async function deleteUser(userId: number): Promise<void> {
+  await api.delete(`${ADMIN_PATH}/users/${userId}`)
 }

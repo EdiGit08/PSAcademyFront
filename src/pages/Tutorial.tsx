@@ -582,6 +582,17 @@ export default function Tutorial() {
                 <Markdown text={step.body} />
               </div>
 
+              {step.stdin ? (
+                <div className="mt-4 rounded-lg border border-line bg-inset px-3 py-2.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+                    Datos que recibirá tu programa
+                  </p>
+                  <pre className="mt-1.5 overflow-x-auto font-mono text-sm text-code-ink">
+                    {step.stdin}
+                  </pre>
+                </div>
+              ) : null}
+
               {step.tip ? (
                 <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-warning-line bg-warning-soft px-3 py-2.5">
                   <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-warning" />

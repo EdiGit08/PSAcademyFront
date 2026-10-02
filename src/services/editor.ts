@@ -11,6 +11,15 @@ import { PSEINT_LANGUAGE_ID } from './monacoLanguages'
  * alumno dentro de un widget flotante en lugar de insertarlo en el editor.
  */
 
+/**
+ * Slug de la base de datos → identificador de lenguaje de Monaco.
+ *
+ * Solo se mapean los tres que el backend puede ejecutar (Python, Java y PSeint), más
+ * los alias de PSeint porque "pseudocódigo" es como lo llama la academia en la
+ * interfaz. Dejar entradas para otros lenguajes no servía de nada: Monaco solo trae
+ * los que empaqueta el build, y el backend rechazaría el slug en /execute. Cualquier
+ * slug desconocido cae en `plaintext`, que es lo correcto para un borrador vacío.
+ */
 const MONACO_LANGUAGES: Record<string, string> = {
   pseint: PSEINT_LANGUAGE_ID,
   pseudocode: PSEINT_LANGUAGE_ID,
@@ -18,16 +27,6 @@ const MONACO_LANGUAGES: Record<string, string> = {
   python: 'python',
   py: 'python',
   java: 'java',
-  javascript: 'javascript',
-  js: 'javascript',
-  typescript: 'typescript',
-  ts: 'typescript',
-  csharp: 'csharp',
-  'c#': 'csharp',
-  cs: 'csharp',
-  c: 'c',
-  cpp: 'cpp',
-  'c++': 'cpp',
 }
 
 export function toMonacoLanguage(slug: string): string {

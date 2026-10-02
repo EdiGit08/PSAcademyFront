@@ -31,6 +31,22 @@ import type { TutorialProgress } from '../services/api'
 /** Categoría que se abre al terminar el tutorial. */
 const SEQUENTIAL_CATEGORY_NAME = 'Fundamentos'
 
+/**
+ * Categoría que contiene las cinco lecciones guiadas.
+ *
+ * NO se ofrece como categoría navegable, aunque siga viniendo en la respuesta de
+ * /api/categories: el tutorial tiene su propia página guiada (/tutorial) y sus
+ * lecciones no son ejercicios sueltos. Aparecer en el listado era lo que hacía que
+ * el alumno tuviera dos caminos distintos al mismo contenido, y el segundo (resolver
+ * una lección en el workspace) esquivaba los pasos guiados y le mostraba los valores
+ * del "leer" del ejercicio en lugar de los del paso, que es justo la confusión que
+ * había con los datos de entrada. El acceso único es el aviso de arriba del panel.
+ */
+const TUTORIAL_CATEGORY_NAME = 'tutorial'
+
+const isTutorialCategory = (category: Category): boolean =>
+  category.name.trim().toLowerCase() === TUTORIAL_CATEGORY_NAME
+
 const EMPTY_TUTORIAL_PROGRESS: TutorialProgress = {
   totalLessons: 0,
   completedLessons: 0,
@@ -94,7 +110,7 @@ export default function Dashboard() {
   const isLoadingExercises =
     selectedCategory !== null && loadedCategoryId !== selectedCategory.id
 
-  /** Secuenciales espera a que el alumno termine las cinco lecciones del tutorial. */
+  /** Fundamentos espera a que el alumno termine las cinco lecciones del tutorial. */
   const isSequentialLocked =
     selectedCategory !== null &&
     selectedCategory.name.trim().toLowerCase() === SEQUENTIAL_CATEGORY_NAME.toLowerCase() &&
@@ -106,8 +122,13 @@ export default function Dashboard() {
   }, [])
 
   const applyCategories = useCallback((ordered: Category[]): void => {
-    setCategories(ordered)
-    setSelectedCategory((previous) => previous ?? ordered[0] ?? null)
+    // Se descarta la categoría del tutorial aquí y no en el render: así ni la lista de
+    // categorías ni la selección por defecto pueden llegar a ofrecerlo, y no depende de
+    // que un click se llegue a bloquear a tiempo.
+    const browsable = ordered.filter((category) => !isTutorialCategory(category))
+
+    setCategories(browsable)
+    setSelectedCategory((previous) => previous ?? browsable[0] ?? null)
   }, [])
 
   useEffect(() => {
@@ -247,7 +268,7 @@ export default function Dashboard() {
                   <p className="mt-1 max-w-2xl text-sm text-body">
                     {tutorial.isComplete
                       ? 'Ya superaste las cinco lecciones. Ahora puedes practicar con los ejercicios de cada categoría.'
-                      : 'Cinco lecciones cortas que te enseñan a escribir un programa, pedir datos y mostrar resultados. Al terminar se desbloquean los ejercicios de Secuenciales.'}
+                      : `Cinco lecciones cortas que te enseñan a escribir un programa, pedir datos y mostrar resultados. Al terminar se desbloquean los ejercicios de ${SEQUENTIAL_CATEGORY_NAME}.`}
                   </p>
                   <p className="mt-2 text-xs font-medium text-muted">
                     {tutorial.completedLessons} de {tutorial.totalLessons} lecciones superadas
@@ -308,6 +329,15 @@ export default function Dashboard() {
               <div className="rounded-xl border border-dashed border-line-strong bg-surface p-6 text-center sm:p-8">
                 <BookOpen className="mx-auto h-8 w-8 text-faint" />
                 <p className="mt-3 text-sm text-muted">Todavía no hay categorías disponibles.</p>
+                {tutorial.totalLessons > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/tutorial')}
+                    className="mt-3 inline-flex min-h-11 items-center font-semibold text-accent-ink underline underline-offset-2 hover:text-accent sm:min-h-0"
+                  >
+                    Ir al tutorial guiado
+                  </button>
+                ) : null}
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
@@ -317,14 +347,7 @@ export default function Dashboard() {
                     <button
                       key={category.id}
                       type="button"
-                      onClick={() => {
-                        // El tutorial tiene su propia página guiada: no es un listado.
-                        if (category.name.trim().toLowerCase() === 'tutorial') {
-                          navigate('/tutorial')
-                          return
-                        }
-                        setSelectedCategory(category)
-                      }}
+                      onClick={() => setSelectedCategory(category)}
                       aria-pressed={isSelected}
                       className={`group rounded-xl border bg-surface p-4 text-left transition focus:outline-none focus:ring-4 ${
                         isSelected

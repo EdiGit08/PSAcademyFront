@@ -30,6 +30,7 @@ import type {
   ExerciseTemplate,
   Language,
   ProgressStatus,
+  TutorialExercise,
 } from '../types'
 import {
   executeCode,
@@ -76,8 +77,20 @@ const DIFFICULTY_STYLES: Record<Difficulty, { label: string; badge: string }> = 
   Hard: { label: 'Difícil', badge: 'bg-danger-soft text-danger ring-danger-line' },
 }
 
-function normalizeExercise(data: Exercise): Exercise {
+function normalizeExercise(data: TutorialExercise): TutorialExercise {
   return { ...data, templates: data.templates ?? [] }
+}
+
+/**
+ * Un ejercicio con pasos publicados es una lección del tutorial.
+ *
+ * El workspace no es su sitio: ahí el alumno vería el enunciado entero de golpe, con
+ * los valores del "leer" del reto final, en lugar de la explicación y los datos del
+ * paso que tiene delante. Por eso una URL antigua o un enlace directo a una lección
+ * se redirige al tutorial en vez de dejar entrar por la puerta de atrás.
+ */
+function isTutorialLesson(exercise: TutorialExercise): boolean {
+  return (exercise.tutorialSteps?.length ?? 0) > 0
 }
 
 function isUsableTemplate(template: ExerciseTemplate): boolean {
@@ -188,23 +201,33 @@ export default function Workspace() {
     [],
   )
 
-  const fetchExercise = useCallback(async (): Promise<Exercise> => {
+  const fetchExercise = useCallback(async (): Promise<TutorialExercise> => {
     if (!exerciseId) throw new Error('No se encontró el identificador del ejercicio.')
     return normalizeExercise(await getExerciseById(Number(exerciseId)))
   }, [exerciseId])
 
-  const applyExercise = useCallback((data: Exercise): void => {
-    setResult(null)
-    setRunError(null)
-    setDraftState('idle')
-    setExercise(data)
-    // `GET /exercises/{id}` rellena userStatus solo si la petición lleva JWT.
-    setUserStatus(data.userStatus ?? null)
-    setCodeBySlug(toInitialCode(data))
-    setSelectedSlug(
-      pickDefaultLanguage(data.templates.map((template) => template.language?.slug)),
-    )
-  }, [])
+  const applyExercise = useCallback(
+    (data: TutorialExercise): void => {
+      // Antes de pintar nada: así el alumno nunca ve un instante el reto completo de
+      // una lección del tutorial.
+      if (isTutorialLesson(data)) {
+        navigate('/tutorial', { replace: true })
+        return
+      }
+
+      setResult(null)
+      setRunError(null)
+      setDraftState('idle')
+      setExercise(data)
+      // `GET /exercises/{id}` rellena userStatus solo si la petición lleva JWT.
+      setUserStatus(data.userStatus ?? null)
+      setCodeBySlug(toInitialCode(data))
+      setSelectedSlug(
+        pickDefaultLanguage(data.templates.map((template) => template.language?.slug)),
+      )
+    },
+    [navigate],
+  )
 
   useEffect(() => {
     let isActive = true

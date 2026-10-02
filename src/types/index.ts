@@ -9,6 +9,13 @@ export interface User {
   role: string
 }
 
+/**
+ * `UserRole` del backend. Viaja como texto porque la API registra un
+ * `JsonStringEnumConverter` sin política de nombres, así que el cable lleva
+ * literalmente "Admin" y "User".
+ */
+export type UserRole = 'Admin' | 'User'
+
 export interface Category {
   id: number
   name: string
@@ -65,6 +72,12 @@ export interface TutorialStep {
   task: string | null
   codeSnippet: string
   expectedOutput: string
+  /**
+   * Datos de entrada del paso, ya resueltos por el backend: si el paso no declara los
+   * suyos, aquí vienen los del ejercicio. El tutorial los muestra para que el alumno
+   * sepa con qué se va a ejecutar el snippet.
+   */
+  stdin: string | null
   tip: string | null
 }
 
@@ -175,6 +188,14 @@ export interface UpsertTutorialStep {
   task: string | null
   codeSnippet: string
   expectedOutput: string
+  /**
+   * Datos del paso, uno por línea, o `null` para que herede los del ejercicio.
+   *
+   * Ojo al editarlos: la salida esperada del paso se comprobó ejecutándolo con esta
+   * entrada, así que si se cambian hay que recalcular `expectedOutput` a mano o el
+   * alumno no podrá superar el paso.
+   */
+  stdin: string | null
   tip: string | null
 }
 
@@ -214,4 +235,36 @@ export interface UpsertCategoryRequest {
   name: string
   description: string | null
   orderIndex: number
+}
+
+/**
+ * Ficha de una cuenta vista desde el panel de administración.
+ *
+ * Los contadores acompañan a la fila a propósito: borrar una cuenta se lleva por
+ * delante su progreso y sus borradores, y el admin tiene que ver eso antes de
+ * confirmar, no después.
+ */
+export interface AdminUser {
+  id: number
+  email: string
+  role: UserRole
+  createdAt: string
+  /** Ejercicios intentados alguna vez, incluidos los superados. */
+  attemptedCount: number
+  completedCount: number
+  draftCount: number
+  /** Última vez que mandó código o guardó un borrador; `null` si nunca entró. */
+  lastActivityAt: string | null
+  /** True si es la cuenta con la que se está autenticado. */
+  isSelf: boolean
+}
+
+/**
+ * Edición de una cuenta. `newPassword` es opcional: si no llega, el usuario conserva
+ * la suya (el admin nunca ve el hash, así que no puede reenviarla).
+ */
+export interface UpsertUserRequest {
+  email: string
+  role: UserRole
+  newPassword?: string
 }
