@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ChangeEvent, PointerEvent as ReactPointerEvent } from 'react'
+import type { ChangeEvent, ComponentProps, PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Editor from '@monaco-editor/react'
+import type { OnMount } from '@monaco-editor/react'
 import {
   ArrowLeft,
   ChevronDown,
@@ -81,6 +82,38 @@ const MONACO_LANGUAGES: Record<string, string> = {
 
 function toMonacoLanguage(slug: string): string {
   return MONACO_LANGUAGES[slug.trim().toLowerCase()] ?? 'plaintext'
+}
+
+// Una sola instancia para toda la vida de la app. Si el objeto se crea en cada
+// render, Monaco recibe `updateOptions` en cada pulsación y su popup de
+// sugerencias se queda pegado al caret: el alumno ve lo que teclea dentro de un
+// widget flotante en lugar de insertarlo en el editor.
+const EDITOR_OPTIONS: NonNullable<ComponentProps<typeof Editor>['options']> = {
+  automaticLayout: true,
+  fontSize: 13,
+  fontFamily: "'Cascadia Code', Consolas, 'Courier New', monospace",
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  renderLineHighlight: 'line',
+  lineNumbersMinChars: 3,
+  tabSize: 4,
+  insertSpaces: true,
+  wordWrap: 'on',
+  padding: { top: 16, bottom: 16 },
+  ariaLabel: 'Editor de código',
+  // Sin UI flotante que compita con la escritura: sugerencias, ayuda de
+  // parámetros, hover y texto fantasma se gestionan desde el traductor del
+  // backend y el botón Ejecutar, no sobre el código del alumno.
+  quickSuggestions: false,
+  suggestOnTriggerCharacters: false,
+  acceptSuggestionOnEnter: 'off',
+  acceptSuggestionOnCommitCharacter: false,
+  parameterHints: { enabled: false },
+  hover: { enabled: 'off' },
+  inlineSuggest: { enabled: false },
+  suggest: { showWords: false },
+  occurrencesHighlight: 'off',
+  codeLens: false,
 }
 
 function normalizeExercise(data: Exercise): Exercise {
@@ -174,6 +207,15 @@ export default function Workspace() {
       })
     },
     [startDrag],
+  )
+
+  // Sin `pointerup` (el ratón se soltó fuera de la ventana) el body se quedaba
+  // con `user-select: none`, así que la limpieza también ocurre al desmontar.
+  useEffect(
+    () => () => {
+      document.body.style.userSelect = ''
+    },
+    [],
   )
 
   const fetchExercise = useCallback(async (): Promise<Exercise> => {
@@ -343,6 +385,33 @@ export default function Workspace() {
 
   useEffect(() => flushPendingDraft, [flushPendingDraft])
 
+  // El editor se monta una vez y se reutiliza: `layout()` explícito para que el
+  // caret y las líneas visibles coincidan con el modelo tras cambiar el tamaño
+  // del panel o redimensionar la ventana.
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
+
+  const handleEditorMount = useCallback<OnMount>((editor) => {
+    editorRef.current = editor
+    editor.layout()
+  }, [])
+
+  useEffect(() => {
+    const editor = editorRef.current
+    const container = editor?.getContainerDomNode()?.parentElement ?? null
+    if (!editor || !container) return
+
+    const syncLayout = () => editor.layout()
+    window.addEventListener('resize', syncLayout)
+    const observer =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncLayout) : null
+    observer?.observe(container)
+
+    return () => {
+      window.removeEventListener('resize', syncLayout)
+      observer?.disconnect()
+    }
+  }, [exercise, effectiveSlug])
+
   const handleLanguageChange = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => {
       flushPendingDraft()
@@ -387,16 +456,24 @@ export default function Workspace() {
     }
   }, [exercise, isRunning, effectiveSlug, currentCode])
 
+  // `handleRun` cambia en cada pulsación (depende de `currentCode`); con el ref el
+  // listener de `window` se registra una vez y no se desmonta con cada tecla.
+  const runRef = useRef(handleRun)
+
+  useEffect(() => {
+    runRef.current = handleRun
+  })
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
         event.preventDefault()
-        void handleRun()
+        void runRef.current()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [handleRun])
+  }, [])
 
   if (isLoading) {
     return (
@@ -626,26 +703,14 @@ export default function Workspace() {
             language={toMonacoLanguage(effectiveSlug)}
             value={currentCode}
             onChange={handleCodeChange}
+            onMount={handleEditorMount}
             loading={
               <div className="flex h-full items-center justify-center bg-editor text-sm text-faint">
                 <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
                 Cargando editor...
               </div>
             }
-            options={{
-              automaticLayout: true,
-              fontSize: 13,
-              fontFamily: "'Cascadia Code', Consolas, 'Courier New', monospace",
-              minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-              renderLineHighlight: 'line',
-              lineNumbersMinChars: 3,
-              tabSize: 4,
-              insertSpaces: true,
-              wordWrap: 'on',
-              padding: { top: 16, bottom: 16 },
-              ariaLabel: 'Editor de código',
-            }}
+            options={EDITOR_OPTIONS}
           />
         </div>
 
