@@ -29,6 +29,21 @@ const DEFAULT_API_BASE_URL = 'http://localhost:5077/api'
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL ?? DEFAULT_API_BASE_URL
 
+// Un build de produccion sin VITE_API_URL no falla al compilar: simplemente deja
+// toda la API apuntando a localhost, y el sintoma es que el navegador dice que la
+// peticion fue rechazada por CORS (o "Failed to fetch") sin relacion apparent con
+// la variable que faltaba. Se avisa en consola al arrancar, que es donde un
+// becario o una IA acaba mirando primero.
+if (import.meta.env.PROD && API_BASE_URL === DEFAULT_API_BASE_URL) {
+  console.error(
+    '[PSAcademy] VITE_API_URL no está definida: todas las llamadas van a ' +
+      `${DEFAULT_API_BASE_URL}. Añádela en el panel del despliegue (Settings → ` +
+      'Environment Variables) con el valor https://psacademy-api.onrender.com/api ' +
+      'y vuelve a desplegar. Revisa también Cors__AllowedOrigins en la API para que ' +
+      'incluya el dominio de este front.',
+  )
+}
+
 const TOKEN_STORAGE_KEY = 'psacademy.token'
 const USER_STORAGE_KEY = 'psacademy.user'
 const LOGIN_PATH = '/auth/login'
