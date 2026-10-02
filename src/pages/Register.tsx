@@ -75,10 +75,10 @@ export default function Register() {
   }
 
   const inputClassName =
-    'w-full rounded-xl border bg-surface py-2.5 pl-9 pr-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-faint focus:ring-4'
+    'min-h-11 w-full rounded-xl border bg-surface py-2.5 pl-9 pr-3 text-base text-ink sm:text-sm shadow-sm outline-none transition placeholder:text-faint focus:ring-4'
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-canvas px-4 py-10">
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-canvas px-4 py-8 sm:py-10">
       <div className="absolute right-4 top-4 z-10">
         <ThemeToggle variant="block" />
       </div>
@@ -102,7 +102,7 @@ export default function Register() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-line bg-surface p-8 shadow-xl shadow-line/60">
+        <div className="rounded-2xl border border-line bg-surface p-5 shadow-xl shadow-line/60 sm:p-8">
           {error ? (
             <div
               role="alert"
@@ -186,7 +186,7 @@ export default function Register() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-accent/25 transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-base font-semibold sm:text-sm text-white shadow-lg shadow-accent/25 transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none"
             >
               {isSubmitting ? (
                 <>
@@ -203,7 +203,7 @@ export default function Register() {
             ¿Ya tienes cuenta?{' '}
             <Link
               to="/login"
-              className="font-semibold text-accent-ink underline underline-offset-2 transition hover:text-accent-hover"
+              className="inline-flex min-h-11 items-center font-semibold text-accent-ink underline underline-offset-2 transition hover:text-accent-hover"
             >
               Inicia sesión
             </Link>

@@ -20,7 +20,7 @@ export default function ThemeToggle({ variant = 'icon', className = '' }: Props)
         onClick={toggle}
         aria-label={label}
         title={label}
-        className={`inline-flex items-center gap-2 rounded-full border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-body shadow-sm transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line ${className}`}
+        className={`inline-flex min-h-11 items-center gap-2 rounded-full border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-body shadow-sm sm:min-h-0 transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line ${className}`}
       >
         {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         {isDark ? 'Tema claro' : 'Tema oscuro'}
@@ -34,7 +34,7 @@ export default function ThemeToggle({ variant = 'icon', className = '' }: Props)
       onClick={toggle}
       aria-label={label}
       title={label}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line-strong bg-surface text-body transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line ${className}`}
+      className={`inline-flex h-11 w-11 items-center justify-center rounded-lg border border-line-strong bg-surface text-body transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line sm:h-9 sm:w-9 ${className}`}
     >
       {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
     </button>

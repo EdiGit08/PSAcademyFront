@@ -613,7 +613,7 @@ export default function Admin() {
             <button
               type="button"
               onClick={() => navigate('/dashboard')}
-              className="inline-flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-body transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-body transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line"
             >
               <ArrowLeft className="h-4 w-4" />
               <span className="hidden sm:inline">Volver</span>
@@ -631,7 +631,7 @@ export default function Admin() {
               type="button"
               onClick={() => setActiveTab('exercises')}
               aria-pressed={activeTab === 'exercises'}
-              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+              className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
                 activeTab === 'exercises'
                   ? 'bg-surface text-ink shadow-sm'
                   : 'text-body hover:text-ink'
@@ -647,7 +647,7 @@ export default function Admin() {
               type="button"
               onClick={() => setActiveTab('categories')}
               aria-pressed={activeTab === 'categories'}
-              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+              className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
                 activeTab === 'categories'
                   ? 'bg-surface text-ink shadow-sm'
                   : 'text-body hover:text-ink'
@@ -664,7 +664,7 @@ export default function Admin() {
           <button
             type="button"
             onClick={activeTab === 'exercises' ? openCreateForm : openCreateCategoryForm}
-            className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
           >
             <Plus className="h-4 w-4" />
             {activeTab === 'exercises' ? 'Nuevo ejercicio' : 'Nueva categoría'}
@@ -712,7 +712,7 @@ export default function Admin() {
                               <button
                                 type="button"
                                 onClick={() => openEditCategoryForm(category)}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong px-2.5 py-1.5 text-xs font-medium text-body transition hover:bg-inset focus:outline-none focus:ring-4 focus:ring-line"
+                                className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line-strong px-2.5 py-1.5 text-xs font-medium text-body sm:min-h-0 transition hover:bg-inset focus:outline-none focus:ring-4 focus:ring-line"
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                                 Editar
@@ -720,7 +720,7 @@ export default function Admin() {
                               <button
                                 type="button"
                                 onClick={() => setDeleteCategoryTarget(category)}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-danger-line px-2.5 py-1.5 text-xs font-medium text-danger transition hover:bg-danger-soft focus:outline-none focus:ring-4 focus:ring-danger-line"
+                                className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-danger-line px-2.5 py-1.5 text-xs font-medium text-danger sm:min-h-0 transition hover:bg-danger-soft focus:outline-none focus:ring-4 focus:ring-danger-line"
                               >
                                 <Trash className="h-3.5 w-3.5" />
                                 Eliminar
@@ -838,14 +838,14 @@ export default function Admin() {
         ) : (
           <div className="mt-6 overflow-hidden rounded-xl border border-line bg-surface">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-3xl text-left text-sm">
+              <table className="w-full text-left text-sm sm:min-w-3xl">
                 <thead className="border-b border-line bg-canvas text-xs uppercase tracking-wider text-muted">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Título</th>
-                    <th className="px-4 py-3 font-semibold">Categoría</th>
+                    <th className="hidden px-4 py-3 font-semibold sm:table-cell">Categoría</th>
                     <th className="px-4 py-3 font-semibold">Dificultad</th>
-                    <th className="px-4 py-3 font-semibold">Lenguajes</th>
-                    <th className="px-4 py-3 font-semibold">Estado</th>
+                    <th className="hidden px-4 py-3 font-semibold sm:table-cell">Lenguajes</th>
+                    <th className="hidden px-4 py-3 font-semibold sm:table-cell">Estado</th>
                     <th className="px-4 py-3 text-right font-semibold">Acciones</th>
                   </tr>
                 </thead>
@@ -860,7 +860,7 @@ export default function Admin() {
                             {exercise.description || 'Sin enunciado'}
                           </p>
                         </td>
-                        <td className="px-4 py-3 text-body">{exercise.categoryName}</td>
+                        <td className="hidden px-4 py-3 text-body sm:table-cell">{exercise.categoryName}</td>
                         <td className="px-4 py-3">
                           <span
                             className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${difficulty.badge}`}
@@ -868,7 +868,7 @@ export default function Admin() {
                             {difficulty.label}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="hidden px-4 py-3 sm:table-cell">
                           <div className="flex flex-wrap items-center gap-1.5">
                             {(exercise.templates ?? []).length === 0 ? (
                               <span className="text-xs text-faint">—</span>
@@ -885,7 +885,7 @@ export default function Admin() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="hidden px-4 py-3 sm:table-cell">
                           {exercise.isActive ? (
                             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-success">
                               <span className="h-1.5 w-1.5 rounded-full bg-success-solid" />
@@ -903,7 +903,7 @@ export default function Admin() {
                             <button
                               type="button"
                               onClick={() => openEditForm(exercise)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong px-2.5 py-1.5 text-xs font-medium text-body transition hover:bg-inset focus:outline-none focus:ring-4 focus:ring-line"
+                              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line-strong px-2.5 py-1.5 text-xs font-medium text-body sm:min-h-0 transition hover:bg-inset focus:outline-none focus:ring-4 focus:ring-line"
                             >
                               <Pencil className="h-3.5 w-3.5" />
                               Editar
@@ -911,7 +911,7 @@ export default function Admin() {
                             <button
                               type="button"
                               onClick={() => setDeleteTarget(exercise)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-danger-line px-2.5 py-1.5 text-xs font-medium text-danger transition hover:bg-danger-soft focus:outline-none focus:ring-4 focus:ring-danger-line"
+                              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-danger-line px-2.5 py-1.5 text-xs font-medium text-danger sm:min-h-0 transition hover:bg-danger-soft focus:outline-none focus:ring-4 focus:ring-danger-line"
                             >
                               <Trash className="h-3.5 w-3.5" />
                               Eliminar
@@ -933,7 +933,7 @@ export default function Admin() {
       {/* Modal: crear / editar */}
       {isFormOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-backdrop p-4 backdrop-blur-sm">
-          <div className="my-8 w-full max-w-3xl rounded-2xl border border-line bg-surface shadow-2xl">
+          <div className="my-4 w-full max-w-3xl rounded-2xl border border-line bg-surface shadow-2xl sm:my-8">
             <div className="flex items-center justify-between gap-4 border-b border-line px-6 py-4">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-ink">
                 <Pencil className="h-5 w-5 text-faint" />
@@ -950,7 +950,7 @@ export default function Admin() {
             </div>
 
             <form onSubmit={handleSubmit} noValidate>
-              <div className="max-h-[70vh] space-y-5 overflow-y-auto px-6 py-5">
+              <div className="max-h-[70dvh] space-y-5 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
                 {formError ? (
                   <div
                     role="alert"
@@ -1236,7 +1236,7 @@ export default function Admin() {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSaving ? (
                     <>
@@ -1292,7 +1292,7 @@ export default function Admin() {
                 type="button"
                 onClick={() => void handleConfirmDelete()}
                 disabled={isDeleting}
-                className="inline-flex items-center gap-2 rounded-lg bg-danger-solid px-4 py-2 text-sm font-semibold text-white transition hover:bg-danger-solid-hover focus:outline-none focus:ring-4 focus:ring-danger-line/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-danger-solid px-4 py-2 text-sm font-semibold text-white transition hover:bg-danger-solid-hover focus:outline-none focus:ring-4 focus:ring-danger-line/40 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isDeleting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash className="h-4 w-4" />}
                 {isDeleting ? 'Eliminando...' : 'Eliminar'}
@@ -1305,7 +1305,7 @@ export default function Admin() {
       {/* Modal: crear / editar categoría */}
       {isCategoryFormOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-backdrop p-4 backdrop-blur-sm">
-          <div className="my-8 w-full max-w-lg rounded-2xl border border-line bg-surface shadow-2xl">
+          <div className="my-4 w-full max-w-lg rounded-2xl border border-line bg-surface shadow-2xl sm:my-8">
             <div className="flex items-center justify-between gap-4 border-b border-line px-6 py-4">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-ink">
                 <Layers className="h-5 w-5 text-faint" />
@@ -1410,7 +1410,7 @@ export default function Admin() {
                 <button
                   type="submit"
                   disabled={isSavingCategory}
-                  className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSavingCategory ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -1472,7 +1472,7 @@ export default function Admin() {
                 type="button"
                 onClick={() => void handleConfirmDeleteCategory()}
                 disabled={isDeletingCategory}
-                className="inline-flex items-center gap-2 rounded-lg bg-danger-solid px-4 py-2 text-sm font-semibold text-white transition hover:bg-danger-solid-hover focus:outline-none focus:ring-4 focus:ring-danger-line/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-danger-solid px-4 py-2 text-sm font-semibold text-white transition hover:bg-danger-solid-hover focus:outline-none focus:ring-4 focus:ring-danger-line/40 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isDeletingCategory ? (
                   <LoaderCircle className="h-4 w-4 animate-spin" />

@@ -38,7 +38,7 @@ export default function Login() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-canvas px-4 py-10">
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-canvas px-4 py-8 sm:py-10">
       <div className="absolute right-4 top-4 z-10">
         <ThemeToggle variant="block" />
       </div>
@@ -58,7 +58,7 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-line bg-surface p-8 shadow-xl shadow-line/60">
+        <div className="rounded-2xl border border-line bg-surface p-5 shadow-xl shadow-line/60 sm:p-8">
           <h2 className="text-lg font-semibold text-ink">Inicia sesión</h2>
           <p className="mt-1 text-sm text-muted">Accede para continuar con tus ejercicios.</p>
 
@@ -89,7 +89,7 @@ export default function Login() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="alumno@psacademy.com"
-                  className="w-full rounded-xl border border-line-strong bg-surface py-2.5 pl-9 pr-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-faint focus:border-accent focus:ring-4 focus:ring-accent/10"
+                  className="min-h-11 w-full rounded-xl border border-line-strong bg-surface py-2.5 pl-9 pr-3 text-base sm:text-sm text-ink shadow-sm outline-none transition placeholder:text-faint focus:border-accent focus:ring-4 focus:ring-accent/10"
                 />
               </div>
             </div>
@@ -109,7 +109,7 @@ export default function Login() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="••••••••"
-                  className="w-full rounded-xl border border-line-strong bg-surface py-2.5 pl-9 pr-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-faint focus:border-accent focus:ring-4 focus:ring-accent/10"
+                  className="min-h-11 w-full rounded-xl border border-line-strong bg-surface py-2.5 pl-9 pr-3 text-base sm:text-sm text-ink shadow-sm outline-none transition placeholder:text-faint focus:border-accent focus:ring-4 focus:ring-accent/10"
                 />
               </div>
             </div>
@@ -117,7 +117,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-accent/20 transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-base font-semibold sm:text-sm text-white shadow-lg shadow-accent/20 transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none"
             >
               {isSubmitting ? (
                 <>
@@ -134,7 +134,7 @@ export default function Login() {
             ¿No tienes cuenta?{' '}
             <Link
               to="/register"
-              className="font-semibold text-accent-ink underline underline-offset-2 transition hover:text-accent-hover"
+              className="inline-flex min-h-11 items-center font-semibold text-accent-ink underline underline-offset-2 transition hover:text-accent-hover"
             >
               Regístrate aquí
             </Link>

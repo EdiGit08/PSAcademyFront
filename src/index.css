@@ -105,11 +105,33 @@
 @layer base {
   html {
     color-scheme: light;
+    /* Safari en horizontal infla los textos de la pagina y descuadra los layouts;
+       sin esto el movil rota y todo se ve un 20% mas grande. */
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
     background-color: var(--color-canvas);
     color: var(--color-body);
+    /* La barra de inicio del iPhone se come el ultimo renglon de los botones. */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* En tactil, `touch-action: manipulation` quita el retardo de doble toque sin
+     desactivar el scroll ni el zoom pinch. */
+  button,
+  a,
+  label,
+  summary,
+  select {
+    touch-action: manipulation;
+  }
+
+  /* El foco por teclado debe seguir viéndose: en movil no aplica, pero es lo que
+     permite recorrer la app con un teclado externo. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
   }
 
   /* Evita el destello blanco al conmutar y respeta prefers-reduced-motion. */

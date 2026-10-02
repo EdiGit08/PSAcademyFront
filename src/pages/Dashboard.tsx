@@ -208,7 +208,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => navigate('/admin')}
-                className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
               >
                 <Settings className="h-4 w-4" />
                 <span className="hidden sm:inline">Administrar ejercicios</span>
@@ -218,7 +218,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-body transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-body transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line"
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Cerrar sesión</span>
@@ -285,8 +285,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={handleRetryCategories}
-                className="mt-1 font-semibold text-danger underline underline-offset-2 hover:text-danger"
-              >
+                className="mt-1 inline-flex min-h-11 items-center font-semibold text-danger underline underline-offset-2 hover:text-danger sm:min-h-0"              >
                 Reintentar
               </button>
             </div>
@@ -306,7 +305,7 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : categories.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-line-strong bg-surface p-8 text-center">
+              <div className="rounded-xl border border-dashed border-line-strong bg-surface p-6 text-center sm:p-8">
                 <BookOpen className="mx-auto h-8 w-8 text-faint" />
                 <p className="mt-3 text-sm text-muted">Todavía no hay categorías disponibles.</p>
               </div>
@@ -390,7 +389,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setSelectedCategory(null)}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-muted transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line"
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-muted transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line sm:min-h-0"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Ver todas
@@ -399,7 +398,7 @@ export default function Dashboard() {
             </div>
 
             {!selectedCategory && !isLoadingExercises ? (
-              <div className="rounded-xl border border-dashed border-line-strong bg-surface p-10 text-center">
+              <div className="rounded-xl border border-dashed border-line-strong bg-surface p-6 text-center sm:p-10">
                 <BookOpen className="mx-auto h-9 w-9 text-faint" />
                 <p className="mt-3 text-sm font-medium text-body">Ningún filtro aplicado</p>
                 <p className="mt-1 text-sm text-muted">
@@ -407,7 +406,7 @@ export default function Dashboard() {
                 </p>
               </div>
             ) : isSequentialLocked ? (
-              <div className="rounded-xl border border-dashed border-accent-line bg-accent-soft p-10 text-center">
+              <div className="rounded-xl border border-dashed border-accent-line bg-accent-soft p-6 text-center sm:p-10">
                 <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-white shadow-sm">
                   <Lock className="h-5 w-5" />
                 </span>
@@ -422,19 +421,19 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => navigate('/tutorial')}
-                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-accent/25 transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
+                  className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-accent/25 transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
                 >
                   Ir al tutorial
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             ) : isLoadingExercises ? (
-              <div className="flex items-center gap-3 rounded-xl border border-line bg-surface p-10 justify-center text-sm text-muted">
+              <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-line bg-surface p-6 text-center text-sm text-muted sm:flex-row sm:p-10">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
                 Cargando ejercicios...
               </div>
             ) : exercises.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-line-strong bg-surface p-10 text-center">
+              <div className="rounded-xl border border-dashed border-line-strong bg-surface p-6 text-center sm:p-10">
                 <p className="text-sm text-muted">
                   Esta categoría todavía no tiene ejercicios publicados.
                 </p>
@@ -489,7 +488,7 @@ export default function Dashboard() {
                         <button
                           type="button"
                           onClick={() => navigate(`/workspace/${exercise.id}`)}
-                          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20"
+                          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-accent/20 sm:min-h-0"
                         >
                           Resolver
                           <ChevronRight className="h-4 w-4" />

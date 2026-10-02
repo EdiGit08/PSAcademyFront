@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ChangeEvent, PointerEvent as ReactPointerEvent } from 'react'
+import type {
+  ChangeEvent,
+  CSSProperties,
+  PointerEvent as ReactPointerEvent,
+} from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Editor from '@monaco-editor/react'
 import type { OnMount } from '@monaco-editor/react'
@@ -56,6 +60,12 @@ const DEFAULT_CONSOLE_HEIGHT = 220
 const CONSOLE_MIN_HEIGHT = 80
 const EDITOR_MIN_HEIGHT = 160
 
+// La API devuelve las plantillas ordenadas por nombre (java, pseint, python), así que
+// abrir "la primera" equivalía a empezar siempre en Java. PSAcademy es un curso de
+// pseudocódigo: entrar en un ejercicio tiene que abrirse en PSeint, que además es el
+// único lenguaje con editor propio registrado en Monaco.
+const DEFAULT_LANGUAGE_SLUG = 'pseint'
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
@@ -90,6 +100,16 @@ function toInitialCode(exercise: Exercise): Record<string, string> {
     initialCode[draft.languageSlug] = draft.code
   }
   return initialCode
+}
+
+/**
+ * Idioma con el que se abre un ejercicio: PSeint siempre que exista entre los
+ * disponibles y, si no, el primero. Se aplica tanto a las plantillas del ejercicio
+ * como al catálogo de /languages, que es más numeroso.
+ */
+function pickDefaultLanguage(slugs: ReadonlyArray<string | undefined | null>): string {
+  const available = slugs.filter((slug): slug is string => Boolean(slug))
+  return available.find((slug) => slug === DEFAULT_LANGUAGE_SLUG) ?? available[0] ?? ''
 }
 
 export default function Workspace() {
@@ -181,7 +201,9 @@ export default function Workspace() {
     // `GET /exercises/{id}` rellena userStatus solo si la petición lleva JWT.
     setUserStatus(data.userStatus ?? null)
     setCodeBySlug(toInitialCode(data))
-    setSelectedSlug(data.templates[0]?.language.slug ?? '')
+    setSelectedSlug(
+      pickDefaultLanguage(data.templates.map((template) => template.language?.slug)),
+    )
   }, [])
 
   useEffect(() => {
@@ -267,7 +289,7 @@ export default function Workspace() {
     () =>
       languageOptions.some((option) => option.slug === selectedSlug)
         ? selectedSlug
-        : (languageOptions[0]?.slug ?? ''),
+        : pickDefaultLanguage(languageOptions.map((option) => option.slug)),
     [languageOptions, selectedSlug],
   )
 
@@ -452,7 +474,7 @@ export default function Workspace() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-canvas">
+      <div className="flex min-h-dvh w-full items-center justify-center bg-canvas px-4">
         <div className="flex items-center gap-3 text-sm text-muted">
           <LoaderCircle className="h-5 w-5 animate-spin text-accent-ink" />
           Cargando ejercicio...
@@ -463,23 +485,23 @@ export default function Workspace() {
 
   if (loadError || !exercise) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-canvas px-4">
-        <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-8 text-center shadow-sm">
+      <div className="flex min-h-dvh w-full items-center justify-center bg-canvas px-4">
+        <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 text-center shadow-sm sm:p-8">
           <TriangleAlert className="mx-auto h-10 w-10 text-danger" />
           <h1 className="mt-4 text-lg font-semibold text-ink">No pudimos abrir el ejercicio</h1>
           <p className="mt-2 text-sm text-muted">{loadError}</p>
-          <div className="mt-6 flex justify-center gap-3">
+          <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
             <button
               type="button"
               onClick={() => navigate('/dashboard')}
-              className="rounded-lg border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-body transition hover:bg-inset"
+              className="min-h-11 rounded-lg border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-body transition hover:bg-inset"
             >
               Volver al dashboard
             </button>
             <button
               type="button"
               onClick={handleRetryExercise}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-hover"
+              className="min-h-11 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-hover"
             >
               Reintentar
             </button>
@@ -490,17 +512,27 @@ export default function Workspace() {
   }
 
   return (
-    <div ref={containerRef} className="flex h-screen w-screen overflow-hidden bg-canvas">
+    // En movil los tres bloques se apilan y la pagina hace scroll normal: partir la
+    // pantalla en porcentajes deja el enunciado en 96px y el editor en 160px. A partir
+    // de lg se recupera el panel doble con los divisores arrastrables, que son los
+    // unicos que conservan el ancho y el alto en variables CSS.
+    <div
+      ref={containerRef}
+      style={
+        {
+          '--statement-width': `${leftPercent}%`,
+          '--console-height': `${consoleHeight}px`,
+        } as CSSProperties
+      }
+      className="min-h-dvh w-full bg-canvas lg:flex lg:h-dvh lg:w-screen lg:overflow-hidden"
+    >
       {/* PANEL IZQUIERDO — Enunciado */}
-      <section
-        style={{ width: `${leftPercent}%` }}
-        className="flex h-full min-w-0 shrink-0 flex-col bg-surface"
-      >
-        <header className="flex shrink-0 items-center gap-3 border-b border-line px-6 py-4">
+      <section className="flex w-full flex-col bg-surface lg:h-full lg:w-[var(--statement-width)] lg:shrink-0">
+        <header className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3 sm:px-6 sm:py-4">
           <button
             type="button"
             onClick={() => navigate('/dashboard')}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-muted transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-muted transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line"
           >
             <ArrowLeft className="h-4 w-4" />
             Volver al dashboard
@@ -510,7 +542,7 @@ export default function Workspace() {
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+        <div className="min-h-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:overflow-y-auto">
           {conceptsToShow.length > 0 ? (
             <section className="mb-6 space-y-3">
               <div className="flex items-center gap-2">
@@ -558,7 +590,9 @@ export default function Workspace() {
             <h2 className="text-xs font-semibold uppercase tracking-wider text-faint">
               Enunciado
             </h2>
-            <div className="prose prose-slate prose-sm mt-2 max-w-none whitespace-pre-line leading-relaxed text-[15px] text-body">
+            {/* `prose` de @tailwindcss/typography no esta instalado: esas clases no
+               aban que producir ningun estilo y el enunciado llegaba como texto plano. */}
+            <div className="mt-2 max-w-none whitespace-pre-line text-[15px] leading-relaxed text-body">
               {exercise.description}
             </div>
           </div>
@@ -569,7 +603,7 @@ export default function Workspace() {
                 <Terminal className="h-3.5 w-3.5" />
                 Salida Esperada
               </p>
-              <pre className="mt-2.5 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-code-ink/80">
+              <pre className="mt-2.5 overflow-x-auto whitespace-pre-wrap break-words font-mono text-sm lg:text-[13px] leading-relaxed text-code-ink/80">
                 {exercise.expectedOutput?.trim() ? exercise.expectedOutput : '(sin salida)'}
               </pre>
             </div>
@@ -592,7 +626,7 @@ export default function Workspace() {
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface text-[11px] font-semibold text-muted ring-1 ring-inset ring-line">
                       {input.orderIndex + 1}
                     </span>
-                    <code className="min-w-0 flex-1 truncate font-mono text-[13px] text-ink">
+                    <code className="min-w-0 flex-1 truncate font-mono text-sm lg:text-[13px] text-ink">
                       {input.value}
                     </code>
                     <span
@@ -612,23 +646,27 @@ export default function Workspace() {
         </div>
       </section>
 
-      {/* Divisor vertical: enunciado ↔ editor */}
+      {/* Divisor vertical: enunciado ↔ editor. En movil los bloques van apilados, asi
+          que el divisor no tiene sentido (y su arrastre robaba el scroll vertical). */}
       <div
         role="separator"
         aria-orientation="vertical"
         aria-label="Ajustar ancho del enunciado"
         onPointerDown={handleHorizontalDragStart}
         onDoubleClick={() => setLeftPercent(DEFAULT_LEFT_PERCENT)}
-        className="group relative z-10 flex w-1.5 shrink-0 cursor-col-resize items-center justify-center bg-line/70 transition hover:bg-accent/60"
+        className="group relative z-10 hidden w-1.5 shrink-0 cursor-col-resize touch-none items-center justify-center bg-line/70 transition hover:bg-accent/60 lg:flex"
       >
         <span className="h-8 w-0.5 rounded-full bg-line-strong transition group-hover:bg-accent" />
       </div>
 
       {/* PANEL DERECHO — Editor + Consola */}
-      <section ref={rightPanelRef} className="flex h-full min-w-0 flex-1 flex-col bg-editor">
+      <section
+        ref={rightPanelRef}
+        className="flex min-w-0 flex-col bg-editor lg:h-full lg:min-h-0 lg:flex-1"
+      >
         {/* Barra superior */}
-        <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-code-chrome px-4">
-          <div className="flex min-w-0 items-center gap-2 text-sm text-code-ink/60">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-white/10 bg-code-chrome px-3 py-2 sm:px-4 lg:h-14 lg:flex-nowrap lg:py-0">
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-code-ink/60">
             <Code className="h-4 w-4 shrink-0" />
             <span className="truncate font-mono">
               {effectiveSlug || 'main'}.txt
@@ -651,17 +689,20 @@ export default function Workspace() {
             ) : null}
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            <label htmlFor="language-select" className="text-xs font-medium text-code-ink/60">
+          <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+            <label
+              htmlFor="language-select"
+              className="hidden shrink-0 text-xs font-medium text-code-ink/60 sm:inline"
+            >
               Lenguaje
             </label>
-            <div className="relative">
+            <div className="relative min-w-0 flex-1 sm:flex-none">
               <select
                 id="language-select"
                 value={effectiveSlug}
                 onChange={handleLanguageChange}
                 disabled={languageOptions.length === 0}
-                className="appearance-none rounded-lg border border-white/10 bg-code-input py-1.5 pl-3 pr-9 text-sm font-medium text-code-ink outline-none transition hover:bg-code-input-hover focus:border-accent focus:ring-2 focus:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-h-11 w-full appearance-none rounded-lg border border-white/10 bg-code-input py-1.5 pl-3 pr-9 text-sm font-medium text-code-ink outline-none transition hover:bg-code-input-hover focus:border-accent focus:ring-2 focus:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 sm:w-auto"
               >
                 {languageOptions.length === 0 ? (
                   <option value="">Sin lenguajes</option>
@@ -681,15 +722,17 @@ export default function Workspace() {
               onClick={handleResetCode}
               disabled={!effectiveSlug}
               title="Restaurar código inicial"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-sm font-medium text-code-ink/70 transition hover:bg-white/5 hover:text-code-ink disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Restaurar código inicial"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/10 text-sm font-medium text-code-ink/70 transition hover:bg-white/5 hover:text-code-ink disabled:cursor-not-allowed disabled:opacity-40 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-2.5 sm:py-1.5"
             >
               <RotateCcw className="h-4 w-4" />
+              <span className="hidden lg:inline">Restaurar</span>
             </button>
           </div>
         </div>
 
         {/* Editor */}
-        <div className="relative min-h-0 flex-1">
+        <div className="relative h-[46svh] min-h-[15rem] shrink-0 lg:h-auto lg:min-h-0 lg:flex-1">
           <Editor
             height="100%"
             theme="vs-dark"
@@ -715,14 +758,14 @@ export default function Workspace() {
           aria-label="Ajustar alto de la consola"
           onPointerDown={handleVerticalDragStart}
           onDoubleClick={() => setConsoleHeight(DEFAULT_CONSOLE_HEIGHT)}
-          className="group relative z-10 flex h-1.5 shrink-0 cursor-row-resize items-center justify-center border-t border-white/10 bg-code-chrome transition hover:bg-accent/60"
+          className="group relative z-10 hidden h-1.5 shrink-0 cursor-row-resize touch-none items-center justify-center border-t border-white/10 bg-code-chrome transition hover:bg-accent/60 lg:flex"
         >
           <span className="h-0.5 w-8 rounded-full bg-white/20 transition group-hover:bg-accent" />
         </div>
 
         {/* Consola */}
-        <div style={{ height: consoleHeight }} className="flex shrink-0 flex-col bg-code">
-          <div className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-code-chrome px-4">
+        <div className="flex min-h-[16rem] shrink-0 flex-col bg-code lg:h-[var(--console-height)] lg:min-h-0">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-code-chrome px-3 py-2 sm:px-4 lg:h-12 lg:flex-nowrap lg:py-0">
             <div className="flex items-center gap-2">
               <Terminal className="h-4 w-4 text-emerald-400" />
               <span className="text-sm font-medium text-code-ink/70">Consola</span>
@@ -738,7 +781,7 @@ export default function Workspace() {
               type="button"
               onClick={() => void handleRun()}
               disabled={isRunning || !effectiveSlug}
-              className="inline-flex items-center gap-2 rounded-lg bg-success-solid px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-success-solid/25 transition hover:bg-success-solid-hover focus:outline-none focus:ring-4 focus:ring-success-solid/30 disabled:cursor-not-allowed disabled:bg-success-solid/60 disabled:shadow-none"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-success-solid px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-success-solid/25 transition hover:bg-success-solid-hover focus:outline-none focus:ring-4 focus:ring-success-solid/30 disabled:cursor-not-allowed disabled:bg-success-solid/60 disabled:shadow-none sm:w-auto"
             >
               {isRunning ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -772,7 +815,7 @@ export default function Workspace() {
                         <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-500/80">
                           Error de compilación / ejecución
                         </p>
-                        <pre className="mt-1.5 whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-amber-200">
+                        <pre className="mt-1.5 whitespace-pre-wrap break-words font-mono text-sm lg:text-[13px] leading-relaxed text-amber-200">
                           {result.errorOutput}
                         </pre>
                       </div>
@@ -797,7 +840,7 @@ export default function Workspace() {
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">
                       Salida de tu código
                     </p>
-                    <pre className="mt-1.5 whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-code-ink">
+                    <pre className="mt-1.5 whitespace-pre-wrap break-words font-mono text-sm lg:text-[13px] leading-relaxed text-code-ink">
                       {result.actualOutput?.trim() ? result.actualOutput : '(sin salida)'}
                     </pre>
                   </div>
@@ -808,7 +851,7 @@ export default function Workspace() {
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">
                       Salida esperada
                     </p>
-                    <pre className="mt-1.5 whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-code-ink/60">
+                    <pre className="mt-1.5 whitespace-pre-wrap break-words font-mono text-sm lg:text-[13px] leading-relaxed text-code-ink/60">
                       {result.expectedOutput}
                     </pre>
                   </div>
@@ -817,7 +860,7 @@ export default function Workspace() {
             ) : null}
 
             {!runError && !result ? (
-              <p className="font-mono text-[13px] text-muted">
+              <p className="font-mono text-sm lg:text-[13px] text-muted">
                 <span className="text-emerald-500">$</span> Pulsa{' '}
                 <span className="text-faint">Ejecutar Código</span> (o{' '}
                 <span className="text-faint">Ctrl + Enter</span>) para ver el resultado de tu
