@@ -33,6 +33,19 @@ import type {
   User,
 } from '../types'
 
+const STATUS_ALIASES: Record<string, ProgressStatus> = {
+  attempted: 'attempted',
+  completed: 'completed',
+  pendingreview: 'pendingReview',
+  incorrect: 'incorrect',
+}
+
+/** El backend envía el estado en minúscula ("pendingreview"); el front usa camelCase. */
+export function normalizeStatus(value?: string | null): ProgressStatus | null {
+  if (!value) return null
+  return STATUS_ALIASES[value.toLowerCase()] ?? null
+}
+
 const DEFAULT_API_BASE_URL = 'http://localhost:5077/api'
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL ?? DEFAULT_API_BASE_URL
@@ -532,7 +545,7 @@ function toExerciseDetail(raw: RawExercise): TutorialExercise {
     expectedOutput: raw.expectedOutput ?? '',
     templates: (raw.templates ?? []).map(toTemplate),
     inputs,
-    userStatus: raw.userStatus ?? null,
+    userStatus: normalizeStatus(raw.userStatus),
     feedback: raw.feedback ?? null,
     drafts,
     tutorialSteps: toTutorialSteps(raw),
@@ -550,7 +563,7 @@ function toExerciseSummary(raw: RawExercise): Exercise {
     expectedOutput: raw.expectedOutput ?? '',
     templates: [],
     // Con JWT válido el backend marca "attempted"/"completed"; sin sesión llega null.
-    userStatus: raw.userStatus ?? null,
+    userStatus: normalizeStatus(raw.userStatus),
     completedInLanguageSlug: raw.completedInLanguageSlug ?? null,
   }
 }

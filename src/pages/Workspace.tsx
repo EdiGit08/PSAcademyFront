@@ -40,6 +40,7 @@ import {
   getExerciseById,
   getLanguages,
   isAuthenticated,
+  normalizeStatus,
   saveDraft,
 } from '../services/api'
 import { registerPseintLanguage } from '../services/monacoLanguages'
@@ -226,7 +227,7 @@ export default function Workspace() {
       setDraftState('idle')
       setExercise(data)
       // `GET /exercises/{id}` rellena userStatus solo si la petición lleva JWT.
-      setUserStatus(data.userStatus ?? null)
+      setUserStatus(normalizeStatus(data.userStatus))
       setCodeBySlug(toInitialCode(data))
       setSelectedSlug(
         pickDefaultLanguage(data.templates.map((template) => template.language?.slug)),
@@ -475,7 +476,7 @@ export default function Workspace() {
       // El backend devuelve el progreso tras este envío: "completed" al acertar (también
       // en el tutorial, que se autocorrige), "attempted" al fallar y "pendingReview"
       // cuando ya hay un envío esperando calificación.
-      if (response.userStatus) setUserStatus(response.userStatus)
+      if (response.userStatus) setUserStatus(normalizeStatus(response.userStatus))
 
       // El backend envia la solucion a calificacion en cuanto la salida es correcta, asi
       // que basta con reflejar si queda algo en la cola.

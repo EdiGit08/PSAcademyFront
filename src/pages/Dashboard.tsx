@@ -612,14 +612,14 @@ export default function Dashboard() {
                             </span>
                             {exercise.userStatus ? (
                               <span
-                                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${STATUS_STYLES[exercise.userStatus].badge}`}
+                                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${STATUS_STYLES[exercise.userStatus]?.badge ?? ''}`}
                               >
                                 {exercise.userStatus === 'completed' ? (
                                   <CircleCheckBig className="h-3.5 w-3.5" />
                                 ) : (
                                   <CircleDashed className="h-3.5 w-3.5" />
                                 )}
-                                {STATUS_STYLES[exercise.userStatus].label}
+                                {STATUS_STYLES[exercise.userStatus]?.label ?? ''}
                                 {exercise.userStatus === 'completed' &&
                                 completedLanguage ? (
                                   <>
