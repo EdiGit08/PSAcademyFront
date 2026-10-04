@@ -159,13 +159,22 @@ export default function Dashboard() {
         ? `Vas ${tutorial.completedLessons} de ${tutorial.totalLessons} lecciones. Retoma donde lo dejaste: al terminar se desbloquean los ejercicios de ${SEQUENTIAL_CATEGORY_NAME}.`
         : `Cinco lecciones cortas que te enseñan a escribir un programa, pedir datos y mostrar resultados. Al terminar se desbloquean los ejercicios de ${SEQUENTIAL_CATEGORY_NAME}.`
 
+  const userIsAdmin = isAdmin()
   /**
    * Bloqueo secuencial, siguiendo el orden de las categorías (`orderIndex`):
    * tutorial → 1.ª categoría → 2.ª → 3.ª...
    * Cada una se abre solo cuando la anterior está abierta Y completada.
    */
-  const lockByCategory = useMemo(() => {
+    const lockByCategory = useMemo(() => {
     const locks: Record<number, CategoryLock | null> = {}
+
+    // El admin no sigue el orden secuencial: todas las categorías están abiertas.
+    if (userIsAdmin) {
+      categories.forEach((category) => {
+        locks[category.id] = null
+      })
+      return locks
+    }
 
     categories.forEach((category, index) => {
       if (index === 0) {
@@ -181,7 +190,7 @@ export default function Dashboard() {
     })
 
     return locks
-  }, [categories, exercisesByCategory, tutorial.isComplete])
+    }, [categories, exercisesByCategory, tutorial.isComplete, userIsAdmin])
 
   const selectedLock = selectedCategory ? (lockByCategory[selectedCategory.id] ?? null) : null
   const exercises = selectedCategory ? (exercisesByCategory[selectedCategory.id] ?? []) : []
