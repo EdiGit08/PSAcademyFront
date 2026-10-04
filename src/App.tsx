@@ -7,8 +7,13 @@ import Tutorial from './pages/Tutorial'
 import Workspace from './pages/Workspace'
 import Admin from './pages/Admin'
 import { isAdmin, isAuthenticated } from './services/api'
+import { useSessionActivity } from './hooks/useSessionActivity'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
+  // Montado una sola vez dentro de BrowserRouter: renueva el token de acceso mientras
+  // haya sesión, de modo que el expiry de 60 minutos deje de cerrar el sitio.
+  useSessionActivity()
+
   if (!isAuthenticated()) {
     return <Navigate to="/login" replace />
   }
@@ -16,6 +21,8 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function AdminRoute({ children }: { children: ReactNode }) {
+  useSessionActivity()
+
   if (!isAuthenticated()) {
     return <Navigate to="/login" replace />
   }

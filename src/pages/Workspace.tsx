@@ -13,9 +13,11 @@ import {
   CircleCheckBig,
   CircleDashed,
   CircleX,
+  Clock,
   Code,
   Lightbulb,
   LoaderCircle,
+  MessageSquareWarning,
   Play,
   RotateCcw,
   Terminal,
@@ -140,6 +142,10 @@ export default function Workspace() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isRunning, setIsRunning] = useState(false)
+  // El envio lo crea el backend al ejecutar (POST /execute), asi que aqui solo se refleja
+  // si hay algo en la cola: el ejercicio queda 'pendingReview' en el momento y el alumno
+  // recibe la notificacion cuando el admin lo grade.
+  const [awaitingReview, setAwaitingReview] = useState(false)
   const [draftState, setDraftState] = useState<DraftState>('idle')
   const saveTimerRef = useRef<number | null>(null)
   const pendingDraftRef = useRef<PendingDraft | null>(null)
@@ -466,15 +472,21 @@ export default function Workspace() {
         code: currentCode,
       })
       setResult(response)
-      // El backend devuelve el progreso tras este envío: "completed" al acertar,
-      // "attempted" al intentar sin cumplir la salida esperada.
+      // El backend devuelve el progreso tras este envío: "completed" al acertar (también
+      // en el tutorial, que se autocorrige), "attempted" al fallar y "pendingReview"
+      // cuando ya hay un envío esperando calificación.
       if (response.userStatus) setUserStatus(response.userStatus)
+
+      // El backend envia la solucion a calificacion en cuanto la salida es correcta, asi
+      // que basta con reflejar si queda algo en la cola.
+      if (response.awaitingReview !== undefined) setAwaitingReview(response.awaitingReview)
     } catch (caught) {
       setRunError(extractErrorMessage(caught, 'No se pudo ejecutar el código.'))
     } finally {
       setIsRunning(false)
     }
   }, [exercise, isRunning, effectiveSlug, currentCode])
+
 
   // `handleRun` cambia en cada pulsación (depende de `currentCode`); con el ref el
   // listener de `window` se registra una vez y no se desmonta con cada tecla.
@@ -601,6 +613,16 @@ export default function Workspace() {
                 <CircleCheckBig className="h-3.5 w-3.5" />
                 Completado
               </span>
+            ) : userStatus === 'pendingReview' ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-2.5 py-0.5 text-xs font-semibold text-warning ring-1 ring-inset ring-warning-line">
+                <Clock className="h-3.5 w-3.5" />
+                Esperando calificacion
+              </span>
+            ) : userStatus === 'incorrect' ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-danger-soft px-2.5 py-0.5 text-xs font-semibold text-danger ring-1 ring-inset ring-danger-line">
+                <MessageSquareWarning className="h-3.5 w-3.5" />
+                Devuelto
+              </span>
             ) : userStatus === 'attempted' ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-info-soft px-2.5 py-0.5 text-xs font-semibold text-info ring-1 ring-inset ring-info-line">
                 <CircleDashed className="h-3.5 w-3.5" />
@@ -619,6 +641,35 @@ export default function Workspace() {
               {exercise.description}
             </div>
           </div>
+
+          {userStatus === 'pendingReview' ? (
+            <div className="mt-6 flex items-start gap-2.5 rounded-xl border border-warning-line bg-warning-soft px-4 py-3">
+              <Clock className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <p className="text-sm leading-relaxed text-body">
+                Tu solucion esta enviada y esperando a que un administrador la califique. Te
+                avisaremos en cuanto tenga respuesta; mientras tanto no hace falta que la
+                vuelvas a enviar.
+              </p>
+            </div>
+          ) : null}
+
+          {userStatus === 'incorrect' && exercise.feedback ? (
+            <div className="mt-6 flex items-start gap-2.5 rounded-xl border border-danger-line bg-danger-soft px-4 py-3">
+              <MessageSquareWarning className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink">
+                  Tu solucion fue devuelta. Esto es lo que hay que corregir:
+                </p>
+                <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-body">
+                  {exercise.feedback}
+                </p>
+                <p className="mt-2 text-xs text-muted">
+                  Corrige el codigo y vuelve a ejecutar: al acertar se enviara de nuevo a
+                  calificacion.
+                </p>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-8">
             <div className="rounded-xl bg-editor p-4 shadow-inner">
@@ -798,21 +849,25 @@ export default function Workspace() {
                   Ejecutando...
                 </span>
               ) : null}
+
             </div>
 
-            <button
-              type="button"
-              onClick={() => void handleRun()}
-              disabled={isRunning || !effectiveSlug}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-success-solid px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-success-solid/25 transition hover:bg-success-solid-hover focus:outline-none focus:ring-4 focus:ring-success-solid/30 disabled:cursor-not-allowed disabled:bg-success-solid/60 disabled:shadow-none sm:w-auto"
-            >
-              {isRunning ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-              {isRunning ? 'Ejecutando...' : 'Ejecutar Código'}
-            </button>
+            <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={() => void handleRun()}
+                disabled={isRunning || !effectiveSlug}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-success-solid px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-success-solid/25 transition hover:bg-success-solid-hover focus:outline-none focus:ring-4 focus:ring-success-solid/30 disabled:cursor-not-allowed disabled:bg-success-solid/60 disabled:shadow-none sm:w-auto"
+              >
+                {isRunning ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+                {isRunning ? 'Ejecutando...' : 'Ejecutar Código'}
+              </button>
+
+            </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
@@ -820,6 +875,16 @@ export default function Workspace() {
               <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">
                 <CircleX className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
                 <p className="text-sm text-red-300">{runError}</p>
+              </div>
+            ) : null}
+
+            {awaitingReview && result?.isCorrect ? (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-300">
+                <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+                <p className="text-sm">
+                  Enviado. Falta que un administrador lo califique; te avisaremos por la
+                  campana.
+                </p>
               </div>
             ) : null}
 
@@ -847,7 +912,11 @@ export default function Workspace() {
                 ) : result.isCorrect ? (
                   <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-emerald-300">
                     <CircleCheckBig className="h-4 w-4 shrink-0" />
-                    <p className="text-sm font-semibold">¡Correcto! Ejercicio superado 🎉</p>
+                    <p className="text-sm font-semibold">
+                      {result.awaitingReview
+                        ? 'Correcto. Solucion enviada a calificacion.'
+                        : 'Correcto. Ejercicio superado.'}
+                    </p>
                   </div>
                 ) : (
                   <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-red-300">

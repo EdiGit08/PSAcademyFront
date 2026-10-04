@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import Markdown from '../components/Markdown'
 import ThemeToggle from '../components/ThemeToggle'
+import NotificationBell from '../components/NotificationBell'
 import type { ExecuteResponse, TutorialExercise, TutorialStep } from '../types'
 import {
   executeCode,
@@ -296,6 +297,7 @@ export default function Tutorial() {
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Volver al panel</span>
           </button>
+          <NotificationBell />
           <ThemeToggle />
         </div>
       </div>

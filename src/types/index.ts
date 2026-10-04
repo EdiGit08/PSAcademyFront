@@ -1,7 +1,14 @@
 export type Difficulty = 'Easy' | 'Medium' | 'Hard'
 
-/** Progreso del alumno sobre un ejercicio, según `UserProgress` del backend. */
-export type ProgressStatus = 'attempted' | 'completed'
+/**
+ * Progreso del alumno sobre un ejercicio, según `ProgressStatus` del backend.
+ *
+ * `pendingReview` y `incorrect` existen porque los ejercicios (todos menos los del
+ * tutorial) los califica un administrador: acertar la salida solo pone el envío en cola
+ * y el "no" del admin es lo que devuelve el ejercicio a `incorrect`, con su
+ * justificación, para que el alumno lo corrija y lo vuelva a enviar.
+ */
+export type ProgressStatus = 'attempted' | 'completed' | 'pendingReview' | 'incorrect'
 
 export interface User {
   id: number
@@ -102,6 +109,17 @@ export interface Exercise {
   drafts?: ExerciseDraft[]
   /** Slug del lenguaje con el que se superó, si está completado. */
   completedInLanguageSlug?: string | null
+  /**
+   * Justificación del administrador cuando devolvió el último envío. Solo viene
+   * informada si el estado es `incorrect`; en el resto de casos es null.
+   */
+  feedback?: string | null
+  /**
+   * Pasos del tutorial. Solo los ejercicios del tutorial los traen, y su presencia es
+   * lo que los distingue: se autocorrigen al acertar. Un array vacío significa que el
+   * ejercicio es de los que se califica un administrador.
+   */
+  tutorialSteps?: TutorialStep[]
 }
 
 export interface ExecuteRequest {
@@ -123,6 +141,24 @@ export interface ExecuteResponse {
   errorOutput?: string | null
   hasError?: boolean
   userStatus?: ProgressStatus | null
+  /**
+   * El ejercicio tiene un envío esperando al admin. El backend crea el envío en esta misma
+   * llamada cuando la salida es correcta, así que en ese caso vuelve `true` con el
+   * `submissionId` recién creado: no hay un segundo botón que pulsar.
+   */
+  awaitingReview?: boolean
+  /** Envío creado por esta ejecución; null si no hubo ninguno nuevo. */
+  submissionId?: number | null
+}
+
+export interface SubmitRequest {
+  languageSlug: string
+  code: string
+}
+
+export interface SubmitResponse {
+  submissionId: number
+  status: string
 }
 
 export interface LoginRequest {
@@ -133,7 +169,21 @@ export interface LoginRequest {
 export interface LoginResponse {
   token: string
   expiresAtUtc: string
+  /**
+   * Token de renovación. Vive mucho más que el de acceso (14 días) y es lo que permite
+   * mantener la sesión abierta mientras el alumno trabaja sin volver a entrar.
+   */
+  refreshToken: string
+  refreshTokenExpiresAtUtc: string
   user: User
+}
+
+/** Respuesta de `POST /api/auth/refresh`. */
+export interface RefreshResponse {
+  token: string
+  expiresAtUtc: string
+  refreshToken: string
+  refreshTokenExpiresAtUtc: string
 }
 
 export interface RegisterRequest {
@@ -267,4 +317,51 @@ export interface UpsertUserRequest {
   email: string
   role: UserRole
   newPassword?: string
+}
+// ------------------------------------------------- Calificaciones y avisos
+
+/** Estado de un envío en la bandeja del admin. */
+export type SubmissionStatus = 'Pending' | 'Correct' | 'Incorrect'
+
+/** Envío de un alumno pendiente de (o ya subjected a) calificación. */
+export interface AdminSubmission {
+  id: number
+  userId: number
+  userEmail: string
+  exerciseId: number
+  exerciseTitle: string
+  languageName: string
+  code: string
+  actualOutput: string
+  expectedOutput: string
+  status: SubmissionStatus
+  feedback: string | null
+  submittedAt: string
+  gradedAt: string | null
+  gradedByEmail: string | null
+}
+
+export interface GradeSubmissionRequest {
+  correct: boolean
+  /** Obligatoria cuando `correct` es false: es lo que le dice al alumno qué corregir. */
+  feedback?: string
+}
+
+export type NotificationType = 'SubmissionPending' | 'SubmissionGraded'
+
+export interface AppNotification {
+  id: number
+  type: NotificationType
+  title: string
+  message: string
+  /** JSON con `{ submissionId, exerciseId }`, o null si el backend no lo envió. */
+  data: string | null
+  isRead: boolean
+  createdAt: string
+}
+
+/** Contador de no leídas que viaja en la cabecera `X-Unread-Count`. */
+export interface NotificationsResult {
+  notifications: AppNotification[]
+  unreadCount: number
 }

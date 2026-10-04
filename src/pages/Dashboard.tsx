@@ -17,9 +17,10 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import ThemeToggle from '../components/ThemeToggle'
+import NotificationBell from '../components/NotificationBell'
 import type { Category, Difficulty, Exercise, ProgressStatus } from '../types'
 import {
-  clearToken,
+  logout,
   extractErrorMessage,
   getCategories,
   getExercisesByCategory,
@@ -103,6 +104,14 @@ const STATUS_STYLES: Record<ProgressStatus, { label: string; badge: string }> = 
   completed: {
     label: 'Completado',
     badge: 'bg-success-soft text-success ring-success-line',
+  },
+  pendingReview: {
+    label: 'Esperando calificacion',
+    badge: 'bg-warning-soft text-warning ring-warning-line',
+  },
+  incorrect: {
+    label: 'Devuelto',
+    badge: 'bg-danger-soft text-danger ring-danger-line',
   },
 }
 
@@ -277,8 +286,10 @@ export default function Dashboard() {
       .finally(() => setIsLoadingCategories(false))
   }
 
-  function handleLogout() {
-    clearToken()
+  async function handleLogout() {
+    // Avisa al backend para revocar el refresh token: si solo se borrara el
+    // localStorage, el token seguiria siendo valido y la sesion podria renovarse.
+    await logout()
     navigate('/login', { replace: true })
   }
 
@@ -314,12 +325,13 @@ export default function Dashboard() {
 
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={() => void handleLogout()}
               className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-body transition hover:bg-inset hover:text-ink focus:outline-none focus:ring-4 focus:ring-line"
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Cerrar sesión</span>
             </button>
+            <NotificationBell />
             <ThemeToggle />
           </div>
         </div>

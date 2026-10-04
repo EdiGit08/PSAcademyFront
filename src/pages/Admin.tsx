@@ -23,6 +23,8 @@ import {
   X,
 } from 'lucide-react'
 import ThemeToggle from '../components/ThemeToggle'
+import SubmissionsPanel from '../components/SubmissionsPanel'
+import NotificationBell from '../components/NotificationBell'
 import type {
   AdminCategory,
   AdminExercise,
@@ -218,7 +220,9 @@ export default function Admin() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<'exercises' | 'categories' | 'users'>('exercises')
+  const [activeTab, setActiveTab] = useState<'exercises' | 'categories' | 'users' | 'submissions'>(
+    'exercises',
+  )
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
 
@@ -862,6 +866,7 @@ function openEditUserForm(user: AdminUser) {
               <ArrowLeft className="h-4 w-4" />
               <span className="hidden sm:inline">Volver</span>
             </button>
+            <NotificationBell />
             <ThemeToggle />
           </div>
         </div>
@@ -905,6 +910,19 @@ function openEditUserForm(user: AdminUser) {
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab('submissions')}
+              aria-pressed={activeTab === 'submissions'}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+                activeTab === 'submissions'
+                  ? 'bg-surface text-ink shadow-sm'
+                  : 'text-body hover:text-ink'
+              }`}
+            >
+              <CircleCheckBig className="h-4 w-4" />
+              Calificaciones
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setActiveTab('users')
                 void loadUsers()
@@ -924,7 +942,7 @@ function openEditUserForm(user: AdminUser) {
             </button>
           </div>
 
-          {activeTab === 'users' ? null : (
+          {activeTab === 'exercises' || activeTab === 'categories' ? (
             <button
               type="button"
               onClick={activeTab === 'exercises' ? openCreateForm : openCreateCategoryForm}
@@ -933,7 +951,7 @@ function openEditUserForm(user: AdminUser) {
               <Plus className="h-4 w-4" />
               {activeTab === 'exercises' ? 'Nuevo ejercicio' : 'Nueva categoría'}
             </button>
-          )}
+          ) : null}
         </div>
 
         {activeTab === 'categories' ? (
@@ -1163,6 +1181,8 @@ function openEditUserForm(user: AdminUser) {
             </p>
           </section>
         ) : null}
+
+        {activeTab === 'submissions' ? <SubmissionsPanel /> : null}
 
         {activeTab === 'exercises' ? (
           <>

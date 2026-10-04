@@ -3,7 +3,9 @@ import type { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import type {
   AdminCategory,
   AdminExercise,
+  AdminSubmission,
   AdminUser,
+  AppNotification,
   Category,
   ExecuteRequest,
   ExecuteResponse,
@@ -11,14 +13,18 @@ import type {
   ExerciseDraft,
   ExerciseInput,
   ExerciseTemplate,
+  GradeSubmissionRequest,
   InputValueType,
   Language,
   LoginRequest,
   LoginResponse,
   ProgressStatus,
+  RefreshResponse,
   RegisterRequest,
   RegisterResponse,
   SaveDraftRequest,
+  SubmitRequest,
+  SubmitResponse,
   TutorialExercise,
   TutorialStep,
   UpsertCategoryRequest,
@@ -47,11 +53,23 @@ if (import.meta.env.PROD && API_BASE_URL === DEFAULT_API_BASE_URL) {
 }
 
 const TOKEN_STORAGE_KEY = 'psacademy.token'
+const REFRESH_TOKEN_STORAGE_KEY = 'psacademy.refreshToken'
 const USER_STORAGE_KEY = 'psacademy.user'
+/** Caducidad del token de acceso en epoch ms, para renovar antes de que caduque. */
+const TOKEN_EXPIRY_STORAGE_KEY = 'psacademy.tokenExpiry'
 const LOGIN_PATH = '/auth/login'
 const REGISTER_PATH = '/auth/register'
+const REFRESH_PATH = '/auth/refresh'
+const LOGOUT_PATH = '/auth/logout'
 const ADMIN_PATH = '/admin'
-const PUBLIC_AUTH_PATHS = [LOGIN_PATH, REGISTER_PATH]
+const NOTIFICATIONS_PATH = '/notifications'
+
+/**
+ * Peticiones que no deben pasar por la cola de reintento al recibir un 401: son las
+ * que conservan la sesión y las que se hacen sin sesión. Reintentarlas recursivamente
+ * convertiría un refresh fallido en un bucle de peticiones.
+ */
+const SESSION_FREE_PATHS = [LOGIN_PATH, REGISTER_PATH, REFRESH_PATH, LOGOUT_PATH]
 
 // ------------------------------------------------------------------ Sesión
 
@@ -61,6 +79,26 @@ export function getToken(): string | null {
 
 export function setToken(token: string): void {
   localStorage.setItem(TOKEN_STORAGE_KEY, token)
+}
+
+/**
+ * Token de renovación. Viaja en el mismo localStorage que el de acceso: no es un
+ * cookie HttpOnly, así que un XSS puede leerlo igual. El límite real lo pone el backend,
+ * que lo rota en cada uso y lo revoca al cerrar sesión.
+ */
+export function getRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY)
+}
+
+function setRefreshToken(token: string): void {
+  localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, token)
+}
+
+/** Momento en que caduca el token de acceso, en milisegundos epoch. */
+function readAccessTokenExpiry(): number {
+  const raw = localStorage.getItem(TOKEN_EXPIRY_STORAGE_KEY)
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
 }
 
 export function getUser(): User | null {
@@ -81,6 +119,8 @@ export function setUser(user: User): void {
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_STORAGE_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
+  localStorage.removeItem(TOKEN_EXPIRY_STORAGE_KEY)
   localStorage.removeItem(USER_STORAGE_KEY)
 }
 
@@ -116,20 +156,194 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config
 })
 
+/**
+ * Renovación de la sesión mientras el usuario sigue trabajando.
+ *
+ * Antes, el interceptor expulsaba al alumno en cuanto el JWT de 60 minutos expiraba,
+ * aunque estuviera escribiendo código: la sesión se caía por tiempo, no por inactividad
+ * real. Ahora hay dos disparadores y ninguno borra la sesión sin motivo:
+ *
+ * 1. Una respuesta 401 (el token expiró justo entre la comprobación previa y la
+ *    petición). Se canjea el refresh token una sola vez y se reintenta la petición
+ *    original, de modo que ni la acción del alumno ni el estado de la página se pierden.
+ * 2. La comprobación previa de `ensureFreshToken`, que el resto de la app llama al
+ *    detectar actividad y antes de cada operación importante. Así el token se renueva
+ *    proactivamente y la mayoría de las veces ni llega a haber un 401.
+ *
+ * Solo cuando el refresh token tampoco sirve (vencido, revocado o revocado por un
+ * "cerrar sesión" en otra pestaña) se limpia la sesión: en ese caso lacaducidad sí es
+ * real y el usuario tiene que volver a entrar.
+ */
+
+/** Ventana de renovación: se renueva este tiempo antes de que caduque el token. */
+const REFRESH_LEEWAY_MS = 2 * 60 * 1000
+
+/** Marca de reintento en la config de axios, en `declare global` más abajo. */
+const RETRY_FLAG = '__psacademyRetried'
+
+/**
+ * Refresh en curso, compartido por todas las peticiones.
+ *
+ * Sin esto, cinco peticiones que fallan a la vez dispararían cinco canjes: el refresh
+ * token rota en cada uso, así que cuatro de ellos fallarían y expulsarían al usuario
+ * que sí tenía la sesión viva. Con la promesa compartida solo se canjea una vez y las
+ * demás esperan su resultado.
+ */
+let refreshInFlight: Promise<string> | null = null
+
+/**
+ * Canjea el refresh token por un JWT nuevo. Lanza si la sesión ya no es renovable.
+ */
+async function requestNewAccessToken(): Promise<string> {
+  const refreshToken = getRefreshToken()
+
+  if (!refreshToken) {
+    throw new Error('No hay refresh token: la sesión no se puede renovar.')
+  }
+
+  // Instancia aparte de `api` y sin interceptores: un 401 aquí significa "no hay sesión",
+  // no "renueva y reintenta", y pasar por la cola convertiría un fallo en un bucle.
+  const { data } = await axios.post<RefreshResponse>(
+    `${API_BASE_URL}${REFRESH_PATH}`,
+    { refreshToken },
+    { headers: { 'Content-Type': 'application/json' } },
+  )
+
+  setToken(data.token)
+  setRefreshToken(data.refreshToken)
+  localStorage.setItem(
+    TOKEN_EXPIRY_STORAGE_KEY,
+    String(new Date(data.expiresAtUtc).getTime()),
+  )
+
+  return data.token
+}
+
+/** Canje único y compartido: si ya hay uno en marcha, se espera a ese. */
+function refreshAccessToken(): Promise<string> {
+  if (!refreshInFlight) {
+    refreshInFlight = requestNewAccessToken().finally(() => {
+      refreshInFlight = null
+    })
+  }
+  return refreshInFlight
+}
+
+/**
+ * Cierra la sesión en el cliente y manda a /login.
+ *
+ * Se usa solo cuando el refresh token falló, es decir, cuando la caducidad es real. Se
+ * avisa a las demás pestañas con un evento de storage: si el usuario abrió el panel en
+ * otra pestaña, esta también debe caer en /login en lugar de mostrar datos que ya no
+ * puede refrescar.
+ */
+function endSession(): void {
+  clearToken()
+
+  if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+    window.location.assign('/login')
+  }
+}
+
+/**
+ * Reintenta el canje una vez tras una espera corta.
+ *
+ * El refresh token rota en cada uso, así que si dos pestañas llaman a la vez a
+ * `POST /auth/refresh` solo una gana. La que pierde ve un 401 aunque su sesión siga viva:
+ * sin este reintento, abrir el panel en otra pestaña cerraría la primera. Al esperar un
+ * momento, la otra pestaña ya ha escrito el token nuevo en localStorage y el canje
+ * vuelve a funcionar.
+ */
+async function refreshWithRetry(): Promise<string> {
+  try {
+    return await refreshAccessToken()
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, 350))
+
+    // `refreshInFlight` ya quedó en null tras el fallo, así que esto es un canje nuevo.
+    return await refreshAccessToken()
+  }
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
-    const url = error.config?.url ?? ''
-    const isPublicAuthRequest = PUBLIC_AUTH_PATHS.some((path) => url.includes(path))
-    if (error.response?.status === 401 && !isPublicAuthRequest) {
-      clearToken()
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.assign('/login')
+  async (error: AxiosError) => {
+    const config = error.config as (InternalAxiosRequestConfig & { [RETRY_FLAG]?: boolean }) | undefined
+    const url = config?.url ?? ''
+    const isSessionFree = SESSION_FREE_PATHS.some((path) => url.includes(path))
+
+    if (error.response?.status === 401 && !isSessionFree && config && !config[RETRY_FLAG]) {
+      // Solo un reintento por petición: si el token renovado también da 401, el problema
+      // no es la caducidad y hay que dejar que la UI muestre el error real.
+      config[RETRY_FLAG] = true
+
+      try {
+        const token = await refreshWithRetry()
+        config.headers.set('Authorization', `Bearer ${token}`)
+        return await api.request(config)
+      } catch {
+        endSession()
       }
     }
+
     return Promise.reject(error)
   },
 )
+
+/**
+ * Sincroniza la sesión entre pestañas.
+ *
+ * El evento `storage` solo se dispara en las OTRAS pestañas del mismo origen. Al renovar
+ * el token, esta ventana lo guarda en localStorage y las demás lo leen ya actualizado en
+ * su siguiente petición (el interceptor lo consulta en cada una, no lo mantiene en memoria).
+ * Al cerrar sesión o caducar en una pestaña, las demás ven el borrado y caen en /login en
+ * lugar de mostrar datos que ya no pueden renovar.
+ */
+function installCrossTabSync(): void {
+  if (typeof window === 'undefined') return
+
+  window.addEventListener('storage', (event) => {
+    // `key === null` significa que otra pestaña vació todo el almacenamiento.
+    const affectsSession =
+      event.key === null ||
+      event.key === TOKEN_STORAGE_KEY ||
+      event.key === REFRESH_TOKEN_STORAGE_KEY ||
+      event.key === USER_STORAGE_KEY
+
+    if (affectsSession && !getToken()) endSession()
+  })
+}
+
+installCrossTabSync()
+
+/**
+ * Renueva el token si está caducado o a punto de caducar.
+ *
+ * Pensada para llamarse desde la detección de actividad: mientras el alumno escribe,
+ * hace scroll o pulsa botones, la sesión se mantiene viva sin que tenga que volver a
+ * entrar. Es segura de llamar en cualquier momento y no lanza si no hay sesión abierta
+ * (todavía no ha iniciado sesión, o ya se cerró).
+ */
+export async function ensureFreshToken(): Promise<boolean> {
+  if (!isAuthenticated()) return false
+
+  const expiresAt = readAccessTokenExpiry()
+
+  // Sin caducidad conocida (una sesión guardada por una versión anterior del front, o
+  // un token sin el `exp` legible) no se renueva de forma preventiva: cuando caduque,
+  // el interceptor de 401 la recoverá igualmente.
+  if (expiresAt === 0) return true
+
+  if (expiresAt - Date.now() > REFRESH_LEEWAY_MS) return true
+
+  try {
+    await refreshAccessToken()
+    return true
+  } catch {
+    endSession()
+    return false
+  }
+}
 
 /** .NET devuelve las claves de `errors` en PascalCase; el front trabaja en camelCase. */
 const FIELD_LABELS: Record<string, string> = {
@@ -240,6 +454,8 @@ interface RawExercise {
   id: number
   categoryId: number
   categoryName?: string
+  /** Justificación del admin si el último envío fue devuelto. */
+  feedback?: string | null
   title: string
   description?: string
   difficulty: Exercise['difficulty']
@@ -317,6 +533,7 @@ function toExerciseDetail(raw: RawExercise): TutorialExercise {
     templates: (raw.templates ?? []).map(toTemplate),
     inputs,
     userStatus: raw.userStatus ?? null,
+    feedback: raw.feedback ?? null,
     drafts,
     tutorialSteps: toTutorialSteps(raw),
   }
@@ -343,6 +560,8 @@ function toExerciseSummary(raw: RawExercise): Exercise {
 export async function login(request: LoginRequest): Promise<LoginResponse> {
   const { data } = await api.post<LoginResponse>(LOGIN_PATH, request)
   setToken(data.token)
+  setRefreshToken(data.refreshToken)
+  localStorage.setItem(TOKEN_EXPIRY_STORAGE_KEY, String(new Date(data.expiresAtUtc).getTime()))
   setUser(data.user)
   return data
 }
@@ -350,8 +569,36 @@ export async function login(request: LoginRequest): Promise<LoginResponse> {
 export async function register(data: RegisterRequest): Promise<RegisterResponse> {
   const response = await api.post<RegisterResponse>(REGISTER_PATH, data)
   setToken(response.data.token)
+  setRefreshToken(response.data.refreshToken)
+  localStorage.setItem(
+    TOKEN_EXPIRY_STORAGE_KEY,
+    String(new Date(response.data.expiresAtUtc).getTime()),
+  )
   setUser(response.data.user)
   return response.data
+}
+
+/**
+ * Cierra sesión en el backend y borra la sesión local.
+ *
+ * Se avisa al backend para revocar el refresh token: si solo se limpiese el
+ * localStorage, el refresh token seguiría siendo válido y quien lo tuviera (otra
+ * pestaña, el dispositivo compartido) podría renovar la sesión. El fallo del POST se
+ * ignora a propósito: si la red falla, la sesión local se cierra igual y el token
+ * caduca solo.
+ */
+export async function logout(): Promise<void> {
+  const refreshToken = getRefreshToken()
+
+  if (refreshToken) {
+    try {
+      await axios.post(`${API_BASE_URL}${LOGOUT_PATH}`, { refreshToken })
+    } catch {
+      /* Sin conexión se cierra la sesión local igualmente. */
+    }
+  }
+
+  clearToken()
 }
 
 // ------------------------------------------------------------- Ejercicios
@@ -552,4 +799,82 @@ export async function updateUser(userId: number, payload: UpsertUserRequest): Pr
  */
 export async function deleteUser(userId: number): Promise<void> {
   await api.delete(`${ADMIN_PATH}/users/${userId}`)
+}
+
+// ----------------------------------------------- Calificaciones del alumno
+
+/**
+ * Envía la solución a calificación.
+ *
+ * El backend vuelve a ejecutar el código y rechaza el envío si la salida no coincide
+ * con la esperada, así que el botón se habilita solo tras un `isCorrect` pero la
+ * garantía no depende del cliente. Solo tiene sentido para ejercicios normales: el
+ * tutorial se corrige solo al acertar.
+ */
+export async function submitExercise(
+  exerciseId: number,
+  request: SubmitRequest,
+): Promise<SubmitResponse> {
+  const { data } = await api.post<SubmitResponse>(`/exercises/${exerciseId}/submit`, request)
+  return data
+}
+
+// --------------------------------------------- Bandeja de calificación (admin)
+
+/**
+ * Lista los envíos. Sin `status` devuelve la cola de trabajo (los pendientes), que es
+ * lo que el admin necesita por defecto; `Correct`, `Incorrect` y `All` consultan el
+ * historial ya calificado.
+ */
+export async function getAdminSubmissions(
+  status: 'Pending' | 'Correct' | 'Incorrect' | 'All' = 'Pending',
+): Promise<AdminSubmission[]> {
+  const params = status === 'All' ? undefined : { status }
+  const { data } = await api.get<AdminSubmission[]>(`${ADMIN_PATH}/submissions`, { params })
+  return data
+}
+
+/**
+ * Califica un envío. Con `correct: false` la justificación es obligatoria: la API
+ * responde 400 sin ella.
+ */
+export async function gradeSubmission(
+  submissionId: number,
+  request: GradeSubmissionRequest,
+): Promise<AdminSubmission> {
+  const { data } = await api.put<AdminSubmission>(
+    `${ADMIN_PATH}/submissions/${submissionId}/grade`,
+    request,
+  )
+  return data
+}
+
+// ------------------------------------------------------------ Notificaciones
+
+/**
+ * Notificaciones del usuario actual.
+ *
+ * El contador de no leídas llega en la cabecera `X-Unread-Count` y se devuelve aquí
+ * junto con la lista, para que la campana pueda actualizarse sin una segunda petición.
+ * El sondeo es de 30 s (ver `useNotifications`), volumen bajo y suficiente para que el
+ * admin vea el envío casi nada después de que el alumno lo mande.
+ */
+export async function getNotifications(): Promise<{
+  notifications: AppNotification[]
+  unreadCount: number
+}> {
+  const response = await api.get<AppNotification[]>(NOTIFICATIONS_PATH)
+
+  const header = response.headers['x-unread-count']
+  const unreadCount = Number(header)
+
+  return {
+    notifications: response.data,
+    unreadCount: Number.isFinite(unreadCount) ? unreadCount : 0,
+  }
+}
+
+/** Marca una notificación como leída. Sin cuerpo: el backend responde 204. */
+export async function markNotificationRead(notificationId: number): Promise<void> {
+  await api.patch(`${NOTIFICATIONS_PATH}/${notificationId}/read`)
 }
